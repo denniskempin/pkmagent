@@ -7,8 +7,9 @@ This file is the shared behavior. Each source has its own spec:
 - [gmail.md](gmail.md)
 - [messages.md](messages.md)
 - [calendar.md](calendar.md)
+- [contacts.md](contacts.md)
 
-Those files define what each source fetches, how items become files, filenames, source links, and file bodies. This file defines the vault, the cursor, publishing, parallelism, and progress. It does not choose a programming language.
+Those files define what each source fetches, how items become files, filenames, source links, and file bodies. Gmail, Messages, and Calendar run during `pkmagent import`. Contacts is a separate one-time command and is not part of that catch-up. This file defines the vault, the cursor, publishing, parallelism, and progress. It does not choose a programming language.
 
 ## Workflow
 
@@ -43,6 +44,8 @@ The vault is the parent directory of the inbox. The default inbox is `./inbox`, 
         Ada Lovelace.md
       calendar/
         Dentist.md
+  contacts/
+    Ada Lovelace.md
 ```
 
 - `YYYY-MM-DD` is the calendar day the item happened, in the machine's local timezone at the moment of that import. It is not the day the import started.
@@ -50,8 +53,8 @@ The vault is the parent directory of the inbox. The default inbox is `./inbox`, 
 - A source directory is created only when the tool creates a file there.
 - A day directory is created only when the tool creates a file in it.
 - Files are UTF-8 Markdown with LF line endings and a trailing newline.
-- The tool writes inbox files and the vault’s `.pkmagent` directory. It creates files, appends to files it created earlier, and deletes leftover temporary files under the inbox whose names start with `.tmp-`.
-- The tool does not delete day directories, source directories, `.pkmagent`, or Markdown files whose names do not start with `.tmp-`.
+- The tool writes inbox files, `<vault>/contacts` when `import contacts` runs, and the vault’s `.pkmagent` directory. It creates files, appends to inbox files it created earlier, and deletes leftover temporary files under the inbox whose names start with `.tmp-`.
+- The tool does not delete day directories, source directories, `.pkmagent`, or Markdown files whose names do not start with `.tmp-`, except the contacts snapshot in [contacts.md](contacts.md).
 - A file with no frontmatter `id`, and any file outside the day directory being updated, stays as it is.
 
 ## Vault config and secrets
@@ -101,6 +104,10 @@ An item is included when its instant `t` satisfies `window_start <= t < window_e
 
 Appends missing items for that one civil day and does not change the cursor, whether the date is in the past, today, or the future. The slice is the full local day, from midnight inclusive to the next midnight exclusive. `--since` is not used. This can import items the cursor has already passed. It does not delete files or sections.
 
+### `pkmagent import contacts`
+
+Imports the macOS Contacts address book once into `<vault>/contacts`, which is `./contacts` when the vault is the working directory. It does not read or write the inbox and does not change the catch-up cursor. `pkmagent import` and `pkmagent import --day` do not import contacts. Behavior is in [contacts.md](contacts.md).
+
 ### Shared rules
 
 - `--inbox PATH` is optional on import commands.
@@ -109,7 +116,7 @@ Appends missing items for that one civil day and does not change the cursor, whe
 - Overlapping imports are not supported. There is no `--force`.
 - If the frozen end is earlier than `last_success_at`, exit `1` and write nothing. If they are equal, the window is empty: exit `0`, write nothing, and leave the cursor unchanged.
 
-There is no `--from`, `--to`, or `--only`. Every import reads Gmail, Messages, and Calendar together for each day.
+There is no `--from`, `--to`, or `--only`. `pkmagent import` and `pkmagent import --day` read Gmail, Messages, and Calendar together for each day. They do not read Contacts.
 
 ## Publishing a day
 
@@ -167,6 +174,8 @@ calendar 0/3 [                    ] waiting
 ```
 
 Draw these lines only when stderr is a terminal. The first paint prints all three. Later paints move the cursor up three lines and rewrite them. When stderr is not a terminal, print no progress lines. The per-day stdout summary is unchanged either way. After the last paint, the cursor sits on the line below the calendar bar. A failed job stops the bars, then the failure line follows on stderr.
+
+`pkmagent import contacts` does not use these three bars. It shows one bar, specified in [contacts.md](contacts.md).
 
 ## Append and create
 
@@ -248,7 +257,7 @@ If the user had removed that thread file before 18:00, the run would create a ne
 
 ## Out of scope
 
-- Any source other than Gmail, the local Messages store, and the local Calendar store.
+- Any source other than Gmail, the local Messages store, the local Calendar store, and the local Contacts store.
 - Writing back to Gmail, Messages, or Calendar.
 - Downloading attachment bytes.
 - More than one Gmail account.
