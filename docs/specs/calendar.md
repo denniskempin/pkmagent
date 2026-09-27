@@ -54,7 +54,7 @@ attendees:
 ---
 ```
 
-`status` is one of `accepted`, `declined`, `tentative`, `cancelled`, `needs_action`, `unknown`. Use `needs_action` when the user has not responded. Omit `location` when empty. Omit `attendees` when there are none. Sort attendees by email, then name.
+`status` is one of `accepted`, `declined`, `tentative`, `cancelled`, `needs_action`, `unknown`. Use `needs_action` when the user has not responded. Omit `location` when empty. Omit `attendees` when there are none. Sort attendees by email, then name. An attendee's `name` is the contact title when the email matches a contact file, as defined in [contacts.md](contacts.md). Otherwise use the name Calendar provides.
 
 Timed `start` and `end` are RFC3339 in the event's time zone. All-day `start` and `end` are inclusive civil dates (`YYYY-MM-DD`) as Calendar.app shows them. `all_day` is `true` or `false`.
 
@@ -65,14 +65,18 @@ Timed `start` and `end` are RFC3339 in the event's time zone. All-day `start` an
 
 Cleaning.
 
+## Attendees
+
+- [[Ada Lovelace]] <ada@example.com> (accepted)
+
 URL: https://example.com/appointment
 ```
 
-Omit the description when the source has none.
+Omit the description when the source has none. Omit the attendees section when there are none. A matched attendee uses the wiki link from [contacts.md](contacts.md). An unmatched attendee is plain text. The parenthesized word is that attendee's status.
 
 ## Edge cases
 
 - An event whose start is at or after the frozen end is not imported by catch-up. A timed event later the same day is imported when a later run's window covers its start.
 - A Wednesday–Friday event becomes one file in Wednesday's folder. The frontmatter end is Friday. A later run does not append to that file.
 - An all-day event on March 1 stays in `inbox/2026-03-01/` even when the store encodes all-day events as UTC midnight.
-- A changed or cancelled event is not removed or rewritten once its file exists.
+- A changed or cancelled event is not removed or rewritten once its file exists. A later contacts import does not add wiki links to that file.

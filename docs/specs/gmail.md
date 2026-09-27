@@ -52,19 +52,21 @@ participants:
 ---
 ```
 
-On a new file, `participants` is the union of From, To, Cc, and Bcc on the messages in that file, unique by email address, sorted by email. Use an empty name when the display name is unknown. `title` is the display title used for the new file. Later participants appear in appended sections and are not added to this list.
+On a new file, `participants` is the union of From, To, Cc, and Bcc on the messages in that file, unique by email address, sorted by email. `name` is the contact title when the email matches a contact file, as defined in [contacts.md](contacts.md). Otherwise use the header display name, or an empty name when that is unknown. `title` is the display title used for the new file. Later participants appear in appended sections and are not added to this list.
+
+In the message heading and in `To`, `Cc`, and `Bcc`, a matched person is written as `[[Ada Lovelace]] <ada@example.com>`. The wiki link uses the contact filename, as [contacts.md](contacts.md) defines. An unmatched address stays as the header wrote it.
 
 ```markdown
 # Quarterly plan
 
 [Open in Gmail](https://mail.google.com/mail/?authuser=name%40gmail.com#all/<thread id>)
 
-## 2026-09-26 08:14:03 -0700 — Ada Lovelace <ada@example.com>
+## 2026-09-26 08:14:03 -0700 — [[Ada Lovelace]] <ada@example.com>
 
 - Message-Id: 18c2f0a1b2c3d4e5
 - Subject: Quarterly plan
 - To: you@example.com
-- Cc: team@example.com
+- Cc: [[Ada Lovelace]] <ada@example.com>
 
 Body of the message.
 
@@ -83,3 +85,4 @@ Body of the message.
 - The same thread on Monday and Tuesday becomes two files. Each file receives only the messages whose timestamps fall on that day.
 - A subject change does not rename the file. The new subject is the `Subject` line of the appended section.
 - A message moved to Trash is not removed from an existing file. A new message that is in Trash is not imported.
+- Importing contacts later does not rewrite an existing Gmail section. A section written after the contact file exists links the matching address with `[[Ada Lovelace]]`.

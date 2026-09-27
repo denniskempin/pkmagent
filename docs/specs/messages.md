@@ -22,10 +22,10 @@ Display title for a new file:
 
 | Chat | Title |
 | --- | --- |
-| Direct | The other participant's display name if Messages has one, otherwise the phone number or email exactly as stored. A chat with only the user is `Me`. |
-| Group | The group display name if it has one. Otherwise the participant labels sorted by raw UTF-8 bytes, joined with `, `. |
+| Direct | The contact title when the other participant's handle matches a contact file. Otherwise the display name Messages has, otherwise the phone number or email exactly as stored. A chat with only the user is `Me`. |
+| Group | The group display name if it has one. Otherwise each participant's contact title, Messages display name, or handle, in that order, sorted by raw UTF-8 bytes and joined with `, `. |
 
-The other participant in a direct chat is the participant that is not the user's own Messages account. Phone numbers and emails are not reformatted. A whitespace-only group name counts as no name. Contact names are whatever Messages associates with the handle at import time. Sanitize the title with the overview rules.
+The other participant in a direct chat is the participant that is not the user's own Messages account. Phone numbers and emails are not reformatted in the stored handle. A whitespace-only group name counts as no name. Resolve names through [contacts.md](contacts.md). Sanitize the title with the overview rules.
 
 ## Source link
 
@@ -59,14 +59,14 @@ participants:
 ---
 ```
 
-On a new file, participants are the chat participants sorted by handle, raw UTF-8 order. The user's own account has `self: true`. Outgoing sender label is `Me`.
+On a new file, participants are the chat participants sorted by handle, raw UTF-8 order. The user's own account has `self: true`. `name` is the contact title when the handle matches a contact file, otherwise the Messages display name, otherwise an empty string. Outgoing sender label is `Me`. In the body, a resolved sender is a wiki link to that contact. `Me` and an unresolved handle are plain text.
 
 ```markdown
 # Ada Lovelace
 
 [Open in Messages](imessage://%2B15551212)
 
-## 2026-09-27 09:01:00 -0700 — Ada Lovelace
+## 2026-09-27 09:01:00 -0700 — [[Ada Lovelace]]
 
 - Id: 48211
 
@@ -91,6 +91,6 @@ A sticker entry's body is `Sticker: <filename>` or `Sticker: sticker` when there
 
 ## Edge cases
 
-- A contact rename does not rename the file. A new participant appears as the sender of an appended section.
+- A contact rename does not rename an existing file. A new section uses the contact files that exist when that section is written. `[[Ada Lovelace]]` points at `contacts/Ada Lovelace.md`.
 - An unsent message already in a file stays there. New unsent messages are omitted.
 - The same chat on Monday and Tuesday becomes two files. Each file receives only the messages whose timestamps fall on that day.
