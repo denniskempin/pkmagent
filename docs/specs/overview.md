@@ -140,21 +140,23 @@ If a job fails, the tool starts no further jobs. In-flight jobs may finish, and 
 
 ## Progress
 
-Import shows one progress bar on stderr. It is one line, redrawn with a carriage return. It is not a full-screen interface: no alternate screen, no panels, and no mouse.
+Import shows three progress bars on stderr, one per source, in this order: `gmail`, `messages`, `calendar`. Each bar is one line. This is not a full-screen interface: no alternate screen, no panels, and no mouse.
 
-The line is:
-
-```text
-import <done>/<total> [<bar>] <source> <YYYY-MM-DD>
-```
-
-`<total>` is the number of jobs. `<done>` is how many of those jobs have finished successfully. `<bar>` is 20 columns. The number of `=` characters is `floor(20 * done / total)`. When `done` is less than `total`, the next column is `>`. The remaining columns are spaces. When every job has finished, the bar is 20 `=` characters. The label is the source and date of the job that most recently finished. Before the first job finishes, the label is `starting`.
+Each line is:
 
 ```text
-import  4/9 [========>           ] messages 2026-09-27
+<source> <done>/<total> [<bar>] <label>
 ```
 
-Draw this line only when stderr is a terminal. When stderr is not a terminal, print no progress line. The per-day stdout summary is unchanged either way. After the last update, write a newline so the next stderr line is not appended to the bar. A failed job stops the bar, then the failure line follows on stderr.
+`<source>` is padded with spaces to 8 columns. `<total>` is the number of civil dates in the window for that source. `--day` uses a total of 1. `<done>` is how many of that source's jobs have finished successfully. `<bar>` is 20 columns. The number of `=` characters is `floor(20 * done / total)`. When `done` is less than `total` and the source has started, the next column is `>`. The remaining columns are spaces. When every job for that source has finished, the bar is 20 `=` characters. `<label>` is the date of the job that most recently finished for that source. If none have finished and one is running, the label is that running date. If the source has not started, the bar is 20 spaces and the label is `waiting`.
+
+```text
+gmail    2/3 [=============>      ] 2026-09-27
+messages 1/3 [======>             ] 2026-09-26
+calendar 0/3 [                    ] waiting
+```
+
+Draw these lines only when stderr is a terminal. The first paint prints all three. Later paints move the cursor up three lines and rewrite them. When stderr is not a terminal, print no progress lines. The per-day stdout summary is unchanged either way. After the last paint, the cursor sits on the line below the calendar bar. A failed job stops the bars, then the failure line follows on stderr.
 
 ## Append and create
 
@@ -429,7 +431,7 @@ Omit the description or the URL line when the source has none.
 | `1` | Invalid arguments, corrupt state, missing OAuth client on `auth`, clock went backward, or the lock exists. No file was created or appended. |
 | `2` | A requested source failed. Earlier slices in a catch-up window may already have been published. A fetch failure leaves that day unchanged. A write failure may leave earlier appends from that slice in place. |
 
-Stdout gets one line per published slice: `YYYY-MM-DD gmail=<files> messages=<files> calendar=<files>`. `<files>` counts files created or appended, not files left unchanged and not individual messages. Stderr gets the progress bar while the run is going, then `YYYY-MM-DD failed <source>: <reason>` for a failed slice.
+Stdout gets one line per published slice: `YYYY-MM-DD gmail=<files> messages=<files> calendar=<files>`. `<files>` counts files created or appended, not files left unchanged and not individual messages. Stderr gets the three progress bars while the run is going, then `YYYY-MM-DD failed <source>: <reason>` for a failed slice.
 
 ## Edge cases
 
