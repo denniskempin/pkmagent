@@ -22,11 +22,7 @@ The display title for a new file is the subject of the chronologically last mess
 
 ## Source link
 
-```text
-https://mail.google.com/mail/?authuser=<account>#all/<thread id>
-```
-
-`<account>` is the authorized Gmail address, percent-encoded as a query parameter. `<thread id>` is the Gmail API thread id and is not encoded. The visible link text is `Open in Gmail`.
+`source_url` is `https://mail.google.com/mail/?authuser=<account>#all/<thread id>`. `<account>` is the authorized Gmail address, percent-encoded as a query parameter. `<thread id>` is the Gmail API thread id and is not encoded. The note layout for that URL is in [overview.md](overview.md).
 
 ## Message body
 
@@ -34,33 +30,24 @@ When the message has an HTML body, convert that HTML to Markdown and use the Mar
 
 If the message has no HTML, or the conversion is only whitespace and a `text/plain` body exists, use `text/plain` as the section body. If neither body yields text, the section body is empty. Quoted history stays in whichever body is used.
 
-## File format
+## Extra front matter
+
+After the shared fields:
 
 ```yaml
----
-source: gmail
-id: "<thread id>"
-title: "<single-line subject>"
-source_url: "https://mail.google.com/mail/?authuser=name%40gmail.com#all/<thread id>"
-day: YYYY-MM-DD
-timezone: America/Los_Angeles
-imported_at: 2026-09-27T18:04:11-07:00
 account: name@gmail.com
 participants:
   - name: "Ada Lovelace"
     email: ada@example.com
----
 ```
 
-On a new file, `participants` is the union of From, To, Cc, and Bcc on the messages in that file, unique by email address, sorted by email. `name` is the contact title when the email matches a contact file, as defined in [contacts.md](contacts.md). Otherwise use the header display name, or an empty name when that is unknown. `title` is the display title used for the new file. Later participants appear in appended sections and are not added to this list.
+`participants` is the union of From, To, Cc, and Bcc on the messages in the new file, unique by email address, sorted by email. `name` is the contact title when the email matches, otherwise the header display name, or empty when that is unknown. Later participants appear in appended sections and are not added to this list.
 
-In the message heading and in `To`, `Cc`, and `Bcc`, a matched person is written as `[[Ada Lovelace]] <ada@example.com>`. The wiki link uses the contact filename, as [contacts.md](contacts.md) defines. An unmatched address stays as the header wrote it.
+## Message sections
+
+Each message is a `##` heading with the local timestamp and the sender, then these lines:
 
 ```markdown
-# Quarterly plan
-
-[Open in Gmail](https://mail.google.com/mail/?authuser=name%40gmail.com#all/<thread id>)
-
 ## 2026-09-26 08:14:03 -0700 — [[Ada Lovelace]] <ada@example.com>
 
 - Message-Id: 18c2f0a1b2c3d4e5
@@ -69,13 +56,9 @@ In the message heading and in `To`, `Cc`, and `Bcc`, a matched person is written
 - Cc: [[Ada Lovelace]] <ada@example.com>
 
 Body of the message.
-
-### Attachments
-
-- plan.pdf (application/pdf)
 ```
 
-`Message-Id` is the Gmail API message id. Omit `Cc` and `Bcc` when empty. Omit the attachments section when there are none. An attachment with no filename is `unnamed`. List the media type when the source provides it. Order messages oldest first. A changed subject on a later message is a new `Subject` line on that message's section.
+`Message-Id` is the Gmail API message id. Omit `Cc` and `Bcc` when empty. Order messages oldest first. A changed subject on a later message is a new `Subject` line on that message's section. Attachments follow the overview.
 
 ## Edge cases
 
@@ -85,4 +68,3 @@ Body of the message.
 - The same thread on Monday and Tuesday becomes two files. Each file receives only the messages whose timestamps fall on that day.
 - A subject change does not rename the file. The new subject is the `Subject` line of the appended section.
 - A message moved to Trash is not removed from an existing file. A new message that is in Trash is not imported.
-- Importing contacts later does not rewrite an existing Gmail section. A section written after the contact file exists links the matching address with `[[Ada Lovelace]]`.

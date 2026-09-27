@@ -26,21 +26,13 @@ The display title for a new file is the event title, or `untitled`. Sanitize the
 ical://ekevent/<utc>/<calendar item id>?method=show&options=more
 ```
 
-`<utc>` is the occurrence start formatted in UTC as `yyyyMMdd'T'HHmmss'Z'`. An all-day event uses `00:00:00Z` on its displayed start date. `<calendar item id>` is the EventKit calendar item identifier, not the event identifier, and is percent-encoded. Calendar.app does not document this URL. Use it anyway: on current macOS it opens that event. The visible link text is `Open in Calendar`.
+`<utc>` is the occurrence start formatted in UTC as `yyyyMMdd'T'HHmmss'Z'`. An all-day event uses `00:00:00Z` on its displayed start date. `<calendar item id>` is the EventKit calendar item identifier, not the event identifier, and is percent-encoded. Calendar.app does not document this URL. Use it anyway: on current macOS it opens that event.
 
-When the event also has its own URL, keep that URL on the `URL:` line in the body. Omit that line when it is missing or equal to `source_url`.
+## Extra front matter
 
-## File format
+After the shared fields:
 
 ```yaml
----
-source: calendar
-id: "<event id>/<occurrence start>"
-title: "Dentist"
-source_url: "ical://ekevent/20260927T220000Z/ABC123?method=show&options=more"
-day: YYYY-MM-DD
-timezone: America/Los_Angeles
-imported_at: 2026-09-27T18:04:11-07:00
 calendar: "Personal"
 status: accepted
 all_day: false
@@ -51,18 +43,17 @@ attendees:
   - name: "Ada Lovelace"
     email: ada@example.com
     status: accepted
----
 ```
 
-`status` is one of `accepted`, `declined`, `tentative`, `cancelled`, `needs_action`, `unknown`. Use `needs_action` when the user has not responded. Omit `location` when empty. Omit `attendees` when there are none. Sort attendees by email, then name. An attendee's `name` is the contact title when the email matches a contact file, as defined in [contacts.md](contacts.md). Otherwise use the name Calendar provides.
+`status` is one of `accepted`, `declined`, `tentative`, `cancelled`, `needs_action`, `unknown`. Use `needs_action` when the user has not responded. Omit `location` when empty. Omit `attendees` when there are none. Sort attendees by email, then name. An attendee's `name` is the contact title when the email matches, otherwise the name Calendar provides.
 
 Timed `start` and `end` are RFC3339 in the event's time zone. All-day `start` and `end` are inclusive civil dates (`YYYY-MM-DD`) as Calendar.app shows them. `all_day` is `true` or `false`.
 
+## Body
+
+After the shared heading and source link, the body is the event description as Markdown, then attendees, then the event's own URL when it differs from `source_url`.
+
 ```markdown
-# Dentist
-
-[Open in Calendar](ical://ekevent/20260927T220000Z/ABC123?method=show&options=more)
-
 Cleaning.
 
 ## Attendees
@@ -72,11 +63,11 @@ Cleaning.
 URL: https://example.com/appointment
 ```
 
-Omit the description when the source has none. Omit the attendees section when there are none. A matched attendee uses the wiki link from [contacts.md](contacts.md). An unmatched attendee is plain text. The parenthesized word is that attendee's status.
+Omit the description when the source has none. Omit the attendees section when there are none. The parenthesized word is that attendee's status. Omit the `URL` line when the event has no URL or it equals `source_url`.
 
 ## Edge cases
 
 - An event whose start is at or after the frozen end is not imported by catch-up. A timed event later the same day is imported when a later run's window covers its start.
 - A Wednesday–Friday event becomes one file in Wednesday's folder. The frontmatter end is Friday. A later run does not append to that file.
 - An all-day event on March 1 stays in `inbox/2026-03-01/` even when the store encodes all-day events as UTC midnight.
-- A changed or cancelled event is not removed or rewritten once its file exists. A later contacts import does not add wiki links to that file.
+- A changed or cancelled event is not removed or rewritten once its file exists.

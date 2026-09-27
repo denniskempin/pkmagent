@@ -37,33 +37,25 @@ Write each file through a sibling `.tmp-` file, then rename it into place. The t
 
 ## Source link
 
-```text
-addressbook://<identifier>
-```
+`source_url` is `addressbook://<identifier>`. `<identifier>` is the contact identifier, percent-encoded. This opens that person in Contacts.app.
 
-`<identifier>` is the contact identifier, percent-encoded. This opens that person in Contacts.app. The visible link text is `Open in Contacts`.
+## Extra front matter
 
-## File format
+Contacts notes omit `day` and `timezone`. After the shared fields:
 
 ```yaml
----
-source: contacts
-id: "68A46B71-150A-4732-A183-D99EECCE1F18"
-title: "Ada Lovelace"
-source_url: "addressbook://68A46B71-150A-4732-A183-D99EECCE1F18"
 organization: "Analytical Engines"
 job_title: "Mathematician"
 birthday: "1815-12-10"
----
 ```
 
 Omit `organization`, `job_title`, or `birthday` when the contact has none. `birthday` is `YYYY-MM-DD` when the year is known. When the year is missing, store `--MM-DD`.
 
+## Body
+
+After the shared heading and source link:
+
 ```markdown
-# Ada Lovelace
-
-[Open in Contacts](addressbook://68A46B71-150A-4732-A183-D99EECCE1F18)
-
 ## Phones
 
 - mobile: +15551212
@@ -96,23 +88,6 @@ contacts 2/40 [=>                  ] Ada Lovelace
 ```
 
 Draw it only when stderr is a terminal. It does not appear beside the Gmail, Messages, and Calendar bars. Stdout prints one line when the snapshot finishes: `contacts=<files>`. `<files>` is the number of contact files written.
-
-## Name lookup
-
-Gmail, Messages, and Calendar read `<vault>/contacts` when they write a new file or append a section. They do not rewrite sections or filenames that already exist. If `contacts/` is missing, or a later `import contacts` adds a match, existing inbox text stays as it was.
-
-Build the lookup from each contact file that has a frontmatter `id`:
-
-- The contact title is the frontmatter `title`.
-- The link target is that file's name without `.md`.
-- Phone values are the text after `:` on each list item under `## Phones`.
-- Email values are the text after `:` on each list item under `## Emails`.
-
-Match an email by trimming whitespace and comparing case-insensitively. Match a phone by its digits only. Two phones match when the digit strings are equal, or when the longer one is the shorter one with a single leading `1` and the shorter one has 10 digits. Do not match any other partial overlap.
-
-When several contact files match, use the one whose filename sorts first by raw UTF-8 bytes.
-
-The wiki link is `[[<target>]]` when the filename stem equals the title. When sanitizing changed the name, it is `[[<target>|<title>]]`. A value with no match stays as the source wrote it, with no wiki link.
 
 ## Edge cases
 

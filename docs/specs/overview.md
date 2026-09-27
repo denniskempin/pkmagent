@@ -9,7 +9,7 @@ This file is the shared behavior. Each source has its own spec:
 - [calendar.md](calendar.md)
 - [contacts.md](contacts.md)
 
-Those files define what each source fetches, how items become files, filenames, source links, and file bodies. Gmail, Messages, and Calendar run during `pkmagent import`. Contacts is a separate one-time command and is not part of that catch-up. This file defines the vault, the cursor, publishing, parallelism, and progress. It does not choose a programming language.
+Those files define what each source fetches, how items become files, filenames, source links, and file bodies. Gmail, Messages, and Calendar run during `pkmagent import`. Contacts is a separate one-time command and is not part of that catch-up. This file defines the vault, the cursor, publishing, parallelism, progress, and the shared note format. It does not choose a programming language.
 
 ## Workflow
 
@@ -209,11 +209,70 @@ Sanitizing a title:
 
 Create new files in ascending raw UTF-8 order of their stable ids. The preferred name is `Title.md`. If that name is already taken, including a case-insensitive match against a file already in the directory or another new file from this slice, use `Title--<suffix>.md`. The suffix is the stable id sanitized with the same character rules, truncated to 40 Unicode scalar values. If that name is also taken, append `-2`, `-3`, and so on. Do not rename the file that already has the preferred name.
 
-## Source links
+## Note format
 
-Every new file includes `source_url` in its frontmatter and, under the title heading, a Markdown link to that same URL. An append does not change either one. The link is chosen when the file is created. Each source spec defines the URL and the link text.
+Every imported note is a UTF-8 Markdown file with LF line endings and a trailing newline. New-file rendering is deterministic except for `imported_at`. An append does not change front matter or the source link.
 
-Every new file starts with YAML frontmatter. New-file rendering is deterministic except for `imported_at`, which is the RFC3339 time the file is created. `timezone` is the IANA name of the machine's local zone.
+### Front matter
+
+Every note starts with YAML front matter. These fields are present, in this order:
+
+```yaml
+---
+source: gmail
+id: "<stable id>"
+title: "<single line>"
+source_url: "<url>"
+imported_at: 2026-09-27T18:04:11-07:00
+```
+
+`source` is `gmail`, `messages`, `calendar`, or `contacts`. `id` is the stable id from that source spec. `title` is the display title, one line. `source_url` is the link defined by that source spec. `imported_at` is the RFC3339 time the file was created, with a numeric offset.
+
+Gmail, Messages, and Calendar notes then include:
+
+```yaml
+day: YYYY-MM-DD
+timezone: America/Los_Angeles
+```
+
+`day` is the inbox folder date. `timezone` is the IANA name of the machine's local zone. Contacts notes omit `day` and `timezone`.
+
+Any further fields are defined only in the source spec and come after these shared fields. Omit an optional source field when the source has no value. Do not repeat a shared field under another name.
+
+### Body
+
+The body is Markdown. Use Markdown for structure that the source can support: headings, lists, links, emphasis, and quotes. When the source has only plain text, keep that plain text. Do not wrap the body in a code fence.
+
+The body starts with the title and the source link:
+
+```markdown
+# Quarterly plan
+
+[Open in Gmail](https://mail.google.com/mail/?authuser=name%40gmail.com#all/<thread id>)
+```
+
+The heading text is `title`. The link URL is `source_url`. The link text is `Open in Gmail`, `Open in Messages`, `Open in Calendar`, or `Open in Contacts`, matching `source`. The source spec defines how to build `source_url` and does not repeat this layout.
+
+People, phone numbers, and email addresses that match a contact file are wiki links, as defined below. An address that does not match stays as the source wrote it.
+
+When a note lists attachments, they are a Markdown list under `### Attachments`. Each item is `filename (media type)`. A missing filename is `unnamed`. Omit the media type when the source has none. Omit the heading when there are no attachments. Do not download attachment bytes.
+
+### Contact wiki links
+
+Gmail, Messages, and Calendar read `<vault>/contacts` when they write a new file or append a section. They do not rewrite sections or filenames that already exist. If `contacts/` is missing, or a later `import contacts` adds a match, existing inbox text stays as it was.
+
+Build the lookup from each contact file that has a frontmatter `id`:
+
+- The contact title is the frontmatter `title`.
+- The link target is that file's name without `.md`.
+- Phone values are the text after `:` on each list item under `## Phones` in [contacts.md](contacts.md).
+- Email values are the text after `:` on each list item under `## Emails` there.
+
+Match an email by trimming whitespace and comparing case-insensitively. Match a phone by its digits only. Two phones match when the digit strings are equal, or when the longer one is the shorter one with a single leading `1` and the shorter one has 10 digits. Do not match any other partial overlap.
+
+When several contact files match, use the one whose filename sorts first by raw UTF-8 bytes.
+
+The wiki link is `[[<target>]]` when the filename stem equals the title. When sanitizing changed the name, it is `[[<target>|<title>]]`. In front matter, store the contact title as a plain string, not as a wiki link. In the body, a matched person is the wiki link. Where the source also has an email address, write `[[Ada Lovelace]] <ada@example.com>`. A sender that is the user, with no contact match, stays `Me`.
 
 ## Exit codes
 

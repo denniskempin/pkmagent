@@ -25,7 +25,7 @@ Display title for a new file:
 | Direct | The contact title when the other participant's handle matches a contact file. Otherwise the display name Messages has, otherwise the phone number or email exactly as stored. A chat with only the user is `Me`. |
 | Group | The group display name if it has one. Otherwise each participant's contact title, Messages display name, or handle, in that order, sorted by raw UTF-8 bytes and joined with `, `. |
 
-The other participant in a direct chat is the participant that is not the user's own Messages account. Phone numbers and emails are not reformatted in the stored handle. A whitespace-only group name counts as no name. Resolve names through [contacts.md](contacts.md). Sanitize the title with the overview rules.
+The other participant in a direct chat is the participant that is not the user's own Messages account. Phone numbers and emails are not reformatted in the stored handle. A whitespace-only group name counts as no name. Names that match a contact file use the overview's wiki link. Sanitize the title with the overview rules.
 
 ## Source link
 
@@ -37,47 +37,36 @@ The link opens Messages.app to the participants in the chat. There is no documen
 4. If that list is empty, `source_url` is `messages://`. This opens Messages.app and not a specific thread.
 5. Otherwise `source_url` is `<scheme>://<handle>,<handle>,...`.
 
-A direct chat uses one handle: `imessage://%2B15551212`. A group chat joins the other participants: `imessage://%2B15551212,ada%40icloud.com`. The visible link text is `Open in Messages`. Use the chat's full participant list, not only people who sent a message in the slice.
+A direct chat uses one handle: `imessage://%2B15551212`. A group chat joins the other participants: `imessage://%2B15551212,ada%40icloud.com`. Use the chat's full participant list, not only people who sent a message in the slice.
 
-## File format
+## Extra front matter
+
+After the shared fields:
 
 ```yaml
----
-source: messages
-id: "<chat guid>"
-title: "Ada Lovelace"
-source_url: "imessage://%2B15551212"
-day: YYYY-MM-DD
-timezone: America/Los_Angeles
-imported_at: 2026-09-27T18:04:11-07:00
 participants:
   - name: "Ada Lovelace"
     handle: "+15551212"
   - name: ""
     handle: "me@icloud.com"
     self: true
----
 ```
 
-On a new file, participants are the chat participants sorted by handle, raw UTF-8 order. The user's own account has `self: true`. `name` is the contact title when the handle matches a contact file, otherwise the Messages display name, otherwise an empty string. Outgoing sender label is `Me`. In the body, a resolved sender is a wiki link to that contact. `Me` and an unresolved handle are plain text.
+On a new file, participants are the chat participants sorted by handle, raw UTF-8 order. The user's own account has `self: true`. `name` is the contact title when the handle matches, otherwise the Messages display name, otherwise an empty string.
+
+## Message sections
+
+Each message, reaction, or sticker is a `##` heading with the local timestamp and the sender, then an id line and the body. Attachments follow the overview.
 
 ```markdown
-# Ada Lovelace
-
-[Open in Messages](imessage://%2B15551212)
-
 ## 2026-09-27 09:01:00 -0700 — [[Ada Lovelace]]
 
 - Id: 48211
 
 See you there.
-
-### Attachments
-
-- photo.jpg (image/jpeg)
 ```
 
-`Id` is the Messages database message id. Reactions and stickers use the same heading and `Id` line. Omit the attachments section when there are none. An attachment with no filename is `unnamed`. List the media type when the source provides it.
+`Id` is the Messages database message id. The outgoing sender label is `Me`.
 
 A reaction entry's body is one line:
 
@@ -91,6 +80,5 @@ A sticker entry's body is `Sticker: <filename>` or `Sticker: sticker` when there
 
 ## Edge cases
 
-- A contact rename does not rename an existing file. A new section uses the contact files that exist when that section is written. `[[Ada Lovelace]]` points at `contacts/Ada Lovelace.md`.
 - An unsent message already in a file stays there. New unsent messages are omitted.
 - The same chat on Monday and Tuesday becomes two files. Each file receives only the messages whose timestamps fall on that day.
