@@ -226,7 +226,7 @@ source_url: "<url>"
 imported_at: 2026-09-27T18:04:11-07:00
 ```
 
-`source` is `gmail`, `messages`, `calendar`, or `contacts`. `id` is the stable id from that source spec. `title` is the display title, one line. `source_url` is the link defined by that source spec. `imported_at` is the RFC3339 time the file was created, with a numeric offset.
+`source` is `gmail`, `messages`, `calendar`, or `contacts`. `id` is the stable id from that source spec. `title` is the filename without `.md`, including a collision suffix when the file has one. `source_url` is the link defined by that source spec. `imported_at` is the RFC3339 time the file was created, with a numeric offset.
 
 Gmail, Messages, and Calendar notes then include:
 
@@ -243,15 +243,13 @@ Any further fields are defined only in the source spec and come after these shar
 
 The body is Markdown. Use Markdown for structure that the source can support: headings, lists, links, emphasis, and quotes. When the source has only plain text, keep that plain text. Do not wrap the body in a code fence.
 
-The body starts with the title and the source link:
+The filename is the note title. The body does not repeat it as a heading. The body starts with the source link:
 
 ```markdown
-# Quarterly plan
-
 [Open in Gmail](https://mail.google.com/mail/?authuser=name%40gmail.com#all/<thread id>)
 ```
 
-The heading text is `title`. The link URL is `source_url`. The link text is `Open in Gmail`, `Open in Messages`, `Open in Calendar`, or `Open in Contacts`, matching `source`. The source spec defines how to build `source_url` and does not repeat this layout.
+The link URL is `source_url`. The link text is `Open in Gmail`, `Open in Messages`, `Open in Calendar`, or `Open in Contacts`, matching `source`. The source spec defines how to build `source_url` and does not repeat this layout.
 
 People, phone numbers, and email addresses that match a contact file are wiki links, as defined below. An address that does not match stays as the source wrote it.
 
@@ -263,8 +261,7 @@ Gmail, Messages, and Calendar read `<vault>/contacts` when they write a new file
 
 Build the lookup from each contact file that has a frontmatter `id`:
 
-- The contact title is the frontmatter `title`.
-- The link target is that file's name without `.md`.
+- The contact title is that file's name without `.md`. That is also the frontmatter `title`.
 - Phone values are the text after `:` on each list item under `## Phones` in [contacts.md](contacts.md).
 - Email values are the text after `:` on each list item under `## Emails` there.
 
@@ -272,7 +269,7 @@ Match an email by trimming whitespace and comparing case-insensitively. Match a 
 
 When several contact files match, use the one whose filename sorts first by raw UTF-8 bytes.
 
-The wiki link is `[[<target>]]` when the filename stem equals the title. When sanitizing changed the name, it is `[[<target>|<title>]]`. In front matter, store the contact title as a plain string, not as a wiki link. In the body, a matched person is the wiki link. Where the source also has an email address, write `[[Ada Lovelace]] <ada@example.com>`. A sender that is the user, with no contact match, stays `Me`.
+The wiki link is `[[<title>]]`, and `<title>` is that contact file's name without `.md`. In front matter, store the contact title as a plain string, not as a wiki link. In the body, a matched person is the wiki link. Where the source also has an email address, write `[[Ada Lovelace]] <ada@example.com>`. A sender that is the user, with no contact match, stays `Me`.
 
 ## Exit codes
 

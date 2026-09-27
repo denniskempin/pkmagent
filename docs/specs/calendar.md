@@ -51,7 +51,7 @@ Timed `start` and `end` are RFC3339 in the event's time zone. All-day `start` an
 
 ## Body
 
-After the shared heading and source link, the body is the event description as Markdown, then attendees, then the event's own URL when it differs from `source_url`.
+After the source link, the body is the event description as Markdown, then attendees, then the event's own URL when it differs from `source_url`.
 
 ```markdown
 Cleaning.

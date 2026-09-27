@@ -53,7 +53,7 @@ Omit `organization`, `job_title`, or `birthday` when the contact has none. `birt
 
 ## Body
 
-After the shared heading and source link:
+After the source link:
 
 ```markdown
 ## Phones
