@@ -48,7 +48,7 @@ addressbook://<identifier>
 ```yaml
 ---
 source: contacts
-id: "<contact identifier>"
+id: "68A46B71-150A-4732-A183-D99EECCE1F18"
 title: "Ada Lovelace"
 source_url: "addressbook://68A46B71-150A-4732-A183-D99EECCE1F18"
 organization: "Analytical Engines"
