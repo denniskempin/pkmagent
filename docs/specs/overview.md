@@ -2,7 +2,13 @@
 
 `pkmagent` is a local read-only importer. It pulls Gmail, macOS Messages, and macOS Calendar into a Markdown inbox that a personal management system then handles.
 
-This document is the behavior spec. It does not choose a programming language, library, or Google Cloud project setup beyond the files and rules below.
+This file is the shared behavior. Each source has its own spec:
+
+- [gmail.md](gmail.md)
+- [messages.md](messages.md)
+- [calendar.md](calendar.md)
+
+Those files define what each source fetches, how items become files, filenames, source links, and file bodies. This file defines the vault, the cursor, publishing, parallelism, and progress. It does not choose a programming language.
 
 ## Workflow
 
@@ -69,6 +75,8 @@ The tool creates `<vault>/.pkmagent/` and `<vault>/.pkmagent/secrets/` when need
 
 The tool never prints tokens, client secrets, or message bodies in logs. It never writes secrets into day directories or Markdown files. Removing day directories from the inbox does not remove `.pkmagent`.
 
+Gmail authorization is specified in [gmail.md](gmail.md).
+
 ## Commands
 
 ### `pkmagent auth gmail`
@@ -115,12 +123,14 @@ For civil date `D`, the slice is the intersection of the window with that date:
 - `slice_end` is the earlier of `window_end` and local midnight at the start of `D+1`.
 - Include items with `slice_start <= t < slice_end`.
 
+Which instant `t` an item uses is defined in that source's spec.
+
 A catch-up that starts at 10:00 and runs again at 18:00 visits only today. The slice is 10:00 inclusive through 18:00 exclusive. Mail from 11:00 is included. Mail from 09:00 is not.
 
 1. At startup, delete every file or directory under the inbox whose name starts with `.tmp-`.
 2. Fetch Gmail, Messages, and Calendar for the slice. The three fetches run in parallel with other days, as defined under Parallel import. If any fetch for this day fails, do not write this day or any later day, and stop the run. The cursor stays where the previous successful slice left it.
 3. If the slice has no items, write nothing. Count the slice as published.
-4. Otherwise append or create files as defined below.
+4. Otherwise append or create files as defined below and in the source specs.
 5. On catch-up, after every write for the slice has succeeded, set `last_success_at` to `slice_end`. If that is still before `window_end`, continue to the next date. If it equals `window_end`, the run is finished.
 6. `--day` uses steps 2 through 4 and does not change the cursor. An empty `--day` slice writes nothing and deletes nothing.
 
@@ -162,82 +172,26 @@ Draw these lines only when stderr is a terminal. The first paint prints all thre
 
 Look only in `inbox/YYYY-MM-DD/<source>/`. Ignore files whose names start with `.tmp-`. Read frontmatter `id` from each `.md` file in that directory.
 
-### Gmail and Messages
+Gmail and Messages append new sections to a leftover file with the same id. Calendar creates a file only when that occurrence id is absent. The match keys, message ids, and section format are in the source specs.
 
-Match the Gmail thread id or the Messages chat id.
+Rules that apply to every source:
 
-- If one or more files have that id, append to the file whose path sorts first by raw UTF-8 bytes. Do not create another file for that id.
-- Append only sections whose message id is not already in the file. Message ids are the values of `- Message-Id:` lines in Gmail files and `- Id:` lines in Messages files, compared as exact strings.
-- The filename stays. Bytes already in the file stay, including frontmatter and any notes. Appended text is an exact suffix. If the file is non-empty and does not end in a newline, the suffix starts with one newline. Then come the new sections in chronological order, in the same Markdown as a new file, with a blank line before each `##` heading. The suffix ends with a newline.
-- A changed subject or a new participant is recorded only in the appended sections. Frontmatter is not rewritten. `imported_at` stays at the time the file was created.
-- If every new message id is already in the file, leave the file unchanged.
-- If no file has that id, create one. The new file contains only the messages from this slice.
-
-### Calendar
-
-If any file in the day's `calendar/` directory has that occurrence id, do not modify it and do not create another file for that occurrence. Do not append to an event file. If no file has that id, create one.
-
-### Files the tool does not touch
-
-A file with no frontmatter `id` is never modified. It still occupies its filename.
-
-### Safe write
-
-Write a new file, or the previous bytes plus the appended sections, to a sibling file whose name starts with `.tmp-`. Rename that file onto the destination only after the full contents are written. A crash before the rename leaves the existing file intact.
-
-## Sources
+- A file with no frontmatter `id` is never modified. It still occupies its filename.
+- The filename stays when an existing file is updated. Frontmatter is not rewritten. `imported_at` and `source_url` stay as they were when the file was created.
+- Bytes already in the file stay, including any notes. Appended text is an exact suffix. If the file is non-empty and does not end in a newline, the suffix starts with one newline. Then come the new sections in chronological order, in the same Markdown as a new file, with a blank line before each `##` heading. The suffix ends with a newline.
+- If every new item is already represented in the matching file, leave the file unchanged.
+- Write a new file, or the previous bytes plus the appended sections, to a sibling file whose name starts with `.tmp-`. Rename that file onto the destination only after the full contents are written. A crash before the rename leaves the existing file intact.
 
 The tool never sends mail, never edits Messages, and never edits Calendar.
 
-### Gmail
-
-Use the Gmail API with the stored readonly credential. There is one account, the account that `auth gmail` stored.
-
-Include every message whose Gmail `internalDate` falls in the slice, whether it was received or sent, including archived mail. Ignore the `Date` header. Exclude Spam, Trash, and Drafts. The instant used for the window is `internalDate`.
-
-Group the slice's messages by Gmail thread id. Sections for that thread are oldest `internalDate` first. Ties break by Gmail message id, ascending. The `Message-Id` line stores the Gmail API message id. Quoted history inside a body stays. The tool does not fetch messages outside the slice, including earlier messages from the same day that are already in a leftover file.
-
-A thread can have a separate file on each day it has messages. Sent and received messages in the same thread and the same slice go into one file. A later slice the same day appends to that file when it is still in the day's `gmail/` directory. If that file is gone, the later slice creates a new file that contains only the new messages.
-
-If Gmail auth is missing or expired, that day's Gmail fetch fails and the day is not written.
-
-### Messages
-
-Read the local Messages store at `~/Library/Messages/chat.db` read-only. This includes iMessage, SMS, and RCS stored there. The tool needs Full Disk Access. A locked database or a permission failure fails that day's Messages fetch.
-
-Include every chat, including group chats and messages the user sent. Include plain text, attachment-only messages, tapback reactions, and stickers as their own timestamped entries. Omit unsent messages. An unsent message that is already in a file stays there.
-
-The day of a message is its sent timestamp in the local timezone, not the read timestamp. That sent timestamp is the instant used for the window.
-
-Group by chat. Sections are oldest first. Ties break by the database message id, ascending. The same append rule as Gmail applies: a later slice appends to the leftover chat file, or creates a new file when the leftover is gone.
-
-### Calendar
-
-Use the macOS Calendar store (EventKit), read-only. Do not call the Google Calendar REST API. Events appear only if that calendar is enabled in Calendar.app, including iCloud, Exchange, subscribed calendars, and Google accounts synced onto the Mac. Calendars unchecked in Calendar.app are skipped. An account that exists only on the web is out of scope.
-
-Include every returned event: accepted, tentative, not yet responded, declined, and cancelled. Store the status in frontmatter. If the API does not return a cancelled occurrence, do not invent one. An event file that already exists is left unchanged even when the event later changes or is cancelled.
-
-- Timed events use the start instant for the window and are filed on the local civil date of that instant. A multi-day event is one file on the start day. The file records the real end.
-- All-day events use the civil start date Calendar.app displays. Do not convert a UTC midnight through the local timezone. For the window only, treat the event as occurring at local midnight at the start of that displayed date. A run later the same day does not import that all-day event again. A multi-day all-day event is one file on its displayed start date. Store inclusive start and inclusive end dates. EventKit's exclusive end date must be converted to the inclusive last day the user sees.
-- Recurring events are expanded. One file per occurrence whose window instant falls in the slice.
-
 ## Filenames
 
-Filenames are chosen only when creating a file. The tool never renames a file that is already in the inbox.
-
-| Source | Display title for a new file |
-| --- | --- |
-| Gmail | Subject of the chronologically last message included in the new file, including `Re:` and `Fwd:`. Empty subject becomes `(no subject)`. |
-| Direct message chat | The other participant's display name if Messages has one, otherwise the phone number or email exactly as stored. A chat with only the user is `Me`. |
-| Group chat | The group display name if it has one. Otherwise the participant labels sorted by raw UTF-8 bytes, joined with `, `. |
-| Calendar | The event title, or `untitled`. |
-
-The other participant in a direct chat is the participant that is not the user's own Messages account. Phone numbers and emails are not reformatted. A whitespace-only group name counts as no name. Contact names are whatever Messages associates with the handle at import time.
+Filenames are chosen only when creating a file. The tool never renames a file that is already in the inbox. The display title and stable id come from the source spec.
 
 Sanitizing a title:
 
 1. Collapse all whitespace, including newlines, to a single space and trim the ends.
-2. If the result is empty, use the empty-title fallback from the table above.
+2. If the result is empty, use the empty-title fallback from the source spec.
 3. Replace `\ / : * ? " < > |` and ASCII control characters with `-`.
 4. Trim trailing spaces and dots.
 5. If the result is empty, `.`, or `..`, use `untitled`.
@@ -246,182 +200,11 @@ Sanitizing a title:
 
 Create new files in ascending raw UTF-8 order of their stable ids. The preferred name is `Title.md`. If that name is already taken, including a case-insensitive match against a file already in the directory or another new file from this slice, use `Title--<suffix>.md`. The suffix is the stable id sanitized with the same character rules, truncated to 40 Unicode scalar values. If that name is also taken, append `-2`, `-3`, and so on. Do not rename the file that already has the preferred name.
 
-Stable ids:
-
-- Gmail: the thread id.
-- Messages: the chat guid.
-- Calendar: the event identifier, a slash, and the occurrence start (`YYYY-MM-DD` for all-day, RFC3339 for timed).
-
 ## Source links
 
-Every new file includes `source_url` in its frontmatter and, under the title heading, a Markdown link to that same URL. An append does not change either one. The link is chosen when the file is created.
+Every new file includes `source_url` in its frontmatter and, under the title heading, a Markdown link to that same URL. An append does not change either one. The link is chosen when the file is created. Each source spec defines the URL and the link text.
 
-### Gmail
-
-```text
-https://mail.google.com/mail/?authuser=<account>#all/<thread id>
-```
-
-`<account>` is the authorized Gmail address, percent-encoded as a query parameter. `<thread id>` is the Gmail API thread id and is not encoded. The visible link text is `Open in Gmail`.
-
-### Messages
-
-The link opens Messages.app to the participants in the chat. There is no documented URL for a chat guid, so the link addresses the other participants.
-
-1. The scheme is `sms` when the chat guid starts with `SMS;`. Otherwise the scheme is `imessage`.
-2. Take every participant handle that is not the user's own account, in frontmatter order.
-3. Percent-encode each handle. Encode `+` as `%2B` and `@` as `%40`. Leave the commas that join handles unencoded.
-4. If that list is empty, `source_url` is `messages://`. This opens Messages.app and not a specific thread.
-5. Otherwise `source_url` is `<scheme>://<handle>,<handle>,...`.
-
-A direct chat uses one handle: `imessage://%2B15551212`. A group chat joins the other participants: `imessage://%2B15551212,ada%40icloud.com`. The visible link text is `Open in Messages`. Use the chat's full participant list, not only people who sent a message in the slice.
-
-### Calendar
-
-```text
-ical://ekevent/<utc>/<calendar item id>?method=show&options=more
-```
-
-`<utc>` is the occurrence start formatted in UTC as `yyyyMMdd'T'HHmmss'Z'`. An all-day event uses `00:00:00Z` on its displayed start date. `<calendar item id>` is the EventKit calendar item identifier, not the event identifier, and is percent-encoded. Calendar.app does not document this URL. Use it anyway: on current macOS it opens that event. The visible link text is `Open in Calendar`.
-
-When the event also has its own URL, keep that URL on the `URL:` line in the body. Omit that line when it is missing or equal to `source_url`.
-
-## Markdown files
-
-Every new file starts with YAML frontmatter. New-file rendering is deterministic except for `imported_at`, which is the RFC3339 time the file is created. An append does not change frontmatter.
-
-### Gmail
-
-```yaml
----
-source: gmail
-id: "<thread id>"
-title: "<single-line subject>"
-source_url: "https://mail.google.com/mail/?authuser=name%40gmail.com#all/<thread id>"
-day: YYYY-MM-DD
-timezone: America/Los_Angeles
-imported_at: 2026-09-27T18:04:11-07:00
-account: name@gmail.com
-participants:
-  - name: "Ada Lovelace"
-    email: ada@example.com
----
-```
-
-`timezone` is the IANA name of the machine's local zone. On a new file, `participants` is the union of From, To, Cc, and Bcc on the messages in that file, unique by email address, sorted by email. Use an empty name when the display name is unknown. `title` is the display title used for the new file. Later participants appear in appended sections and are not added to this list.
-
-When the message has an HTML body, convert that HTML to Markdown and use the Markdown as the section body. Keep paragraphs, line breaks, headings, lists, emphasis, links, and block quotes. Render a link as `[label](url)`, using the url as the label when the label is empty. Render `blockquote` and `div.gmail_quote` as Markdown quotes. Drop `script` and `style`. Do not download attachments or remote images. An `img` whose `src` is `http` or `https` becomes `![alt](src)`, with empty alt when the image has none. Leave a `cid:` image out of the body; its file still appears in the attachment list.
-
-If the message has no HTML, or the conversion is only whitespace and a `text/plain` body exists, use `text/plain` as the section body. If neither body yields text, the section body is empty. Quoted history stays in whichever body is used.
-
-```markdown
-# Quarterly plan
-
-[Open in Gmail](https://mail.google.com/mail/?authuser=name%40gmail.com#all/<thread id>)
-
-## 2026-09-26 08:14:03 -0700 — Ada Lovelace <ada@example.com>
-
-- Message-Id: 18c2f0a1b2c3d4e5
-- Subject: Quarterly plan
-- To: you@example.com
-- Cc: team@example.com
-
-Body of the message.
-
-### Attachments
-
-- plan.pdf (application/pdf)
-```
-
-`Message-Id` is the Gmail API message id. Omit `Cc` and `Bcc` when empty. Omit the attachments section when there are none. An attachment with no filename is `unnamed`. List the media type when the source provides it. Order messages oldest first. A changed subject on a later message is a new `Subject` line on that message's section.
-
-### Messages
-
-```yaml
----
-source: messages
-id: "<chat guid>"
-title: "Ada Lovelace"
-source_url: "imessage://%2B15551212"
-day: YYYY-MM-DD
-timezone: America/Los_Angeles
-imported_at: 2026-09-27T18:04:11-07:00
-participants:
-  - name: "Ada Lovelace"
-    handle: "+15551212"
-  - name: ""
-    handle: "me@icloud.com"
-    self: true
----
-```
-
-On a new file, participants are the chat participants sorted by handle, raw UTF-8 order. The user's own account has `self: true`. Outgoing sender label is `Me`.
-
-```markdown
-# Ada Lovelace
-
-[Open in Messages](imessage://%2B15551212)
-
-## 2026-09-27 09:01:00 -0700 — Ada Lovelace
-
-- Id: 48211
-
-See you there.
-
-### Attachments
-
-- photo.jpg (image/jpeg)
-```
-
-`Id` is the Messages database message id. Reactions and stickers use the same heading and `Id` line. A reaction entry's body is one line:
-
-```text
-Reaction: Like to "dinner at 7"
-```
-
-The quoted target is the reacted-to message's plain text, whitespace collapsed, truncated to 80 scalar values. If it has no text, use its first attachment filename. If neither exists, use `a message`. Use the database's reaction name when it has one (`Love`, `Like`, `Dislike`, `Laugh`, `Emphasize`, `Question`, or a custom value).
-
-A sticker entry's body is `Sticker: <filename>` or `Sticker: sticker` when there is no filename.
-
-### Calendar
-
-```yaml
----
-source: calendar
-id: "<event id>/<occurrence start>"
-title: "Dentist"
-source_url: "ical://ekevent/20260927T220000Z/ABC123?method=show&options=more"
-day: YYYY-MM-DD
-timezone: America/Los_Angeles
-imported_at: 2026-09-27T18:04:11-07:00
-calendar: "Personal"
-status: accepted
-all_day: false
-start: 2026-09-27T15:00:00-07:00
-end: 2026-09-27T16:00:00-07:00
-location: "123 Main St"
-attendees:
-  - name: "Ada Lovelace"
-    email: ada@example.com
-    status: accepted
----
-```
-
-`status` is one of `accepted`, `declined`, `tentative`, `cancelled`, `needs_action`, `unknown`. Use `needs_action` when the user has not responded. Omit `location` when empty. Omit `attendees` when there are none. Sort attendees by email, then name.
-
-Timed `start` and `end` are RFC3339 in the event's time zone. All-day `start` and `end` are inclusive civil dates (`YYYY-MM-DD`) as Calendar.app shows them. `all_day` is `true` or `false`.
-
-```markdown
-# Dentist
-
-[Open in Calendar](ical://ekevent/20260927T220000Z/ABC123?method=show&options=more)
-
-Cleaning.
-
-URL: https://example.com/appointment
-```
-
-Omit the description or the URL line when the source has none.
+Every new file starts with YAML frontmatter. New-file rendering is deterministic except for `imported_at`, which is the RFC3339 time the file is created. `timezone` is the IANA name of the machine's local zone.
 
 ## Exit codes
 
@@ -437,22 +220,13 @@ Stdout gets one line per published slice: `YYYY-MM-DD gmail=<files> messages=<fi
 
 - Leftover files stay. The tool appends by frontmatter `id` inside that day and source directory. It does not search the rest of the inbox.
 - The tool does not rewrite existing sections, rewrite frontmatter, rename files, or delete directories.
-- Two new threads titled `Hello` in one slice: the lower stable id gets `Hello.md` when that name is free. The other gets `Hello--<stable-id>.md`. An existing `Hello.md` keeps that name, and the new file gets the suffix.
-- A subject or contact change does not rename the file. The new subject is the `Subject` line of the appended Gmail section. A new Messages participant appears as the sender of the appended section.
-- An unsent message, a message moved to Trash, or a changed event is not removed from an existing file. New unsent messages are omitted. A calendar occurrence that already has a file is not written again.
+- Two new files with the same sanitized title in one slice: the lower stable id gets `Title.md` when that name is free. The other gets `Title--<stable-id>.md`. An existing `Title.md` keeps that name, and the new file gets the suffix.
 - A message or event before `last_success_at` is not imported by catch-up. `--day` appends items from that civil day that are not already in a matching file, and it leaves the cursor where it is.
-- An event whose start is at or after the frozen end is not imported by catch-up. A timed event later the same day is imported when a later run's window covers its start.
-- Changing the machine timezone can change which civil date an instant falls on. The next publish uses the timezone in effect at that run. All-day events still use the date Calendar.app displays.
-- Mail that arrived during the slice and was later archived is included. Spam, Trash, and Drafts are not.
-- HTML mail is stored as Markdown. A message whose HTML conversion is empty uses its plain-text body. A message with only plain text stays plain text.
-- An `internalDate` is included only when it falls inside the slice. A timestamp after the frozen end waits for the next run.
-- The same Gmail thread on Monday and Tuesday becomes two files. Each file receives only the messages whose timestamps fall on that day.
-- A Wednesday–Friday event becomes one file in Wednesday's folder. The frontmatter end is Friday. A later run does not append to that file.
-- An all-day event on March 1 stays in `inbox/2026-03-01/` even when the store encodes all-day events as UTC midnight.
-- A Gmail fetch failure writes nothing for that day, including Messages and Calendar. A crash while renaming an appended file leaves the previous file in place.
+- Changing the machine timezone can change which civil date an instant falls on. The next publish uses the timezone in effect at that run.
+- A fetch failure for one source writes nothing for that day, including the other sources. A crash while renaming an appended file leaves the previous file in place.
 - A second catch-up the same day, with no items at or after the cursor, writes nothing and advances the cursor to the new frozen end.
 - A message at 15:00 is absent from a 10:00 run and present after an 18:00 run. A message at 09:00 stays in the section written by the run whose window covered 09:00.
-- A new file's `source_url` and its `Open in` link stay in place when later messages are appended. Deleting day directories does not delete `<vault>/.pkmagent` or `<vault>/.pkmagent/secrets`.
+- A new file's `source_url` and its open link stay in place when later messages are appended. Deleting day directories does not delete `<vault>/.pkmagent` or `<vault>/.pkmagent/secrets`.
 
 ## Worked example
 
