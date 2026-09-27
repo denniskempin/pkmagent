@@ -13,25 +13,30 @@ The inbox is a drop zone, not an archive. Files from an earlier run may still be
 3. The next import appends new messages to a leftover file with the same id. It creates a file when no leftover has that id.
 4. When the inbox has been emptied, the next import creates new files for items after the cursor.
 
-The tool does not empty the inbox at the end of a run. Catch-up state and the Gmail credential live outside the inbox, so emptying the inbox does not import the same items again.
+The tool does not empty the inbox at the end of a run. Catch-up state lives in the vault’s `.pkmagent` directory, and the Gmail credential lives in `.pkmagent/secrets`. Both are outside the inbox, so emptying the inbox does not import the same items again.
 
 The cursor is a timestamp, not a date. A run at 10:00 records 10:00. A run at 18:00 imports messages, mail, and events from 10:00 onward, including the rest of that same day. Morning items are not fetched again. If the morning file is still in the inbox, the new messages are appended to it.
 
 ## Vault layout
 
-The inbox is a directory. The default is `./inbox`, resolved to an absolute path at startup from the current working directory. `--inbox PATH` replaces the default. The tool creates the inbox directory if it is missing.
-
-A day looks like this:
+The vault is the parent directory of the inbox. The default inbox is `./inbox`, resolved to an absolute path at startup from the current working directory, so the default vault is that working directory. `--inbox PATH` replaces the inbox. The vault is always the parent of the resolved inbox path. The tool creates the inbox directory if it is missing.
 
 ```text
-inbox/
-  2026-09-27/
-    gmail/
-      Quarterly plan.md
-    messages/
-      Ada Lovelace.md
-    calendar/
-      Dentist.md
+<vault>/
+  .pkmagent/
+    state.json
+    import.lock
+  .pkmagent/secrets/
+    gmail-client.json
+    gmail.json
+  inbox/
+    2026-09-27/
+      gmail/
+        Quarterly plan.md
+      messages/
+        Ada Lovelace.md
+      calendar/
+        Dentist.md
 ```
 
 - `YYYY-MM-DD` is the calendar day the item happened, in the machine's local timezone at the moment of that import. It is not the day the import started.
@@ -39,22 +44,20 @@ inbox/
 - A source directory is created only when the tool creates a file there.
 - A day directory is created only when the tool creates a file in it.
 - Files are UTF-8 Markdown with LF line endings and a trailing newline.
-- The tool writes only under the inbox. It creates files, appends to files it created earlier, and deletes leftover temporary files whose names start with `.tmp-`.
-- The tool does not delete day directories, source directories, or Markdown files whose names do not start with `.tmp-`.
+- The tool writes inbox files and the vault’s `.pkmagent` directory. It creates files, appends to files it created earlier, and deletes leftover temporary files under the inbox whose names start with `.tmp-`.
+- The tool does not delete day directories, source directories, `.pkmagent`, or Markdown files whose names do not start with `.tmp-`.
 - A file with no frontmatter `id`, and any file outside the day directory being updated, stays as it is.
 
-Credentials, tokens, and the catch-up cursor are never written into the inbox.
+## Vault config and secrets
 
-## State outside the inbox
-
-All of these paths are under the home directory.
+The tool creates `<vault>/.pkmagent/` and `<vault>/.pkmagent/secrets/` when needed. The secrets directory is mode `0700`. Secret files are mode `0600`.
 
 | Path | Purpose |
 | --- | --- |
-| `~/.config/pkmagent/gmail-client.json` | OAuth client id and secret supplied by the user. Keys: `client_id`, `client_secret`. |
-| `~/.config/pkmagent/gmail.json` | Refresh token for the single authorized Gmail account. Mode `0600`. |
-| `~/.config/pkmagent/state.json` | Catch-up cursor. |
-| `~/.config/pkmagent/import.lock` | Exclusive lock while an import is running. |
+| `<vault>/.pkmagent/state.json` | Catch-up cursor. |
+| `<vault>/.pkmagent/import.lock` | Exclusive lock while an import is running. |
+| `<vault>/.pkmagent/secrets/gmail-client.json` | OAuth client id and secret supplied by the user. Keys: `client_id`, `client_secret`. |
+| `<vault>/.pkmagent/secrets/gmail.json` | Refresh token for the single authorized Gmail account. |
 
 `state.json` contains one field:
 
@@ -64,15 +67,15 @@ All of these paths are under the home directory.
 
 `last_success_at` is an RFC3339 timestamp with a numeric offset. It is the exclusive end of the last successful catch-up: every item at or after this instant is still eligible, and every item before it is not imported again. Missing file, or a file whose only value is `null`, means there has never been a successful catch-up. A file that exists but is not valid JSON of that shape is an error: the tool writes nothing and exits `1`.
 
-The tool never prints tokens, client secrets, or message bodies in logs.
+The tool never prints tokens, client secrets, or message bodies in logs. It never writes secrets into day directories or Markdown files. Removing day directories from the inbox does not remove `.pkmagent`.
 
 ## Commands
 
 ### `pkmagent auth gmail`
 
-Authorizes exactly one Gmail account with OAuth for the scope `https://www.googleapis.com/auth/gmail.readonly`. Stores the credential in `gmail.json`, replacing any previous account. Does not read or write the inbox and does not change the cursor.
+Authorizes exactly one Gmail account with OAuth for the scope `https://www.googleapis.com/auth/gmail.readonly`. Stores the credential in `<vault>/.pkmagent/secrets/gmail.json`, replacing any previous account. Does not read or write the inbox and does not change the cursor. `--inbox` selects the vault the same way it does for import.
 
-The Gmail client file must already exist. If it is missing, the command exits `1`.
+The Gmail client file must already exist at `<vault>/.pkmagent/secrets/gmail-client.json`. If it is missing, the command exits `1`.
 
 ### `pkmagent import`
 
@@ -94,7 +97,7 @@ Appends missing items for that one civil day and does not change the cursor, whe
 
 - `--inbox PATH` is optional on import commands.
 - Invalid arguments, a corrupt state file, a missing inbox parent that cannot be created, or an existing lock: write nothing, leave the cursor unchanged, exit `1`.
-- One import at a time. At start, if `import.lock` exists, exit `1` and tell the user to delete the lock if no import is running. Remove the lock when the process exits. A crash can leave the lock behind.
+- One import at a time. At start, if `<vault>/.pkmagent/import.lock` exists, exit `1` and tell the user to delete the lock if no import is running. Remove the lock when the process exits. A crash can leave the lock behind.
 - Overlapping imports are not supported. There is no `--force`.
 - If the frozen end is earlier than `last_success_at`, exit `1` and write nothing. If they are equal, the window is empty: exit `0`, write nothing, and leave the cursor unchanged.
 
@@ -219,6 +222,40 @@ Stable ids:
 - Messages: the chat guid.
 - Calendar: the event identifier, a slash, and the occurrence start (`YYYY-MM-DD` for all-day, RFC3339 for timed).
 
+## Source links
+
+Every new file includes `source_url` in its frontmatter and, under the title heading, a Markdown link to that same URL. An append does not change either one. The link is chosen when the file is created.
+
+### Gmail
+
+```text
+https://mail.google.com/mail/?authuser=<account>#all/<thread id>
+```
+
+`<account>` is the authorized Gmail address, percent-encoded as a query parameter. `<thread id>` is the Gmail API thread id and is not encoded. The visible link text is `Open in Gmail`.
+
+### Messages
+
+The link opens Messages.app to the participants in the chat. There is no documented URL for a chat guid, so the link addresses the other participants.
+
+1. The scheme is `sms` when the chat guid starts with `SMS;`. Otherwise the scheme is `imessage`.
+2. Take every participant handle that is not the user's own account, in frontmatter order.
+3. Percent-encode each handle. Encode `+` as `%2B` and `@` as `%40`. Leave the commas that join handles unencoded.
+4. If that list is empty, `source_url` is `messages://`. This opens Messages.app and not a specific thread.
+5. Otherwise `source_url` is `<scheme>://<handle>,<handle>,...`.
+
+A direct chat uses one handle: `imessage://%2B15551212`. A group chat joins the other participants: `imessage://%2B15551212,ada%40icloud.com`. The visible link text is `Open in Messages`. Use the chat's full participant list, not only people who sent a message in the slice.
+
+### Calendar
+
+```text
+ical://ekevent/<utc>/<calendar item id>?method=show&options=more
+```
+
+`<utc>` is the occurrence start formatted in UTC as `yyyyMMdd'T'HHmmss'Z'`. An all-day event uses `00:00:00Z` on its displayed start date. `<calendar item id>` is the EventKit calendar item identifier, not the event identifier, and is percent-encoded. Calendar.app does not document this URL. Use it anyway: on current macOS it opens that event. The visible link text is `Open in Calendar`.
+
+When the event also has its own URL, keep that URL on the `URL:` line in the body. Omit that line when it is missing or equal to `source_url`.
+
 ## Markdown files
 
 Every new file starts with YAML frontmatter. New-file rendering is deterministic except for `imported_at`, which is the RFC3339 time the file is created. An append does not change frontmatter.
@@ -230,6 +267,7 @@ Every new file starts with YAML frontmatter. New-file rendering is deterministic
 source: gmail
 id: "<thread id>"
 title: "<single-line subject>"
+source_url: "https://mail.google.com/mail/?authuser=name%40gmail.com#all/<thread id>"
 day: YYYY-MM-DD
 timezone: America/Los_Angeles
 imported_at: 2026-09-27T18:04:11-07:00
@@ -246,6 +284,8 @@ Use `text/plain` when that part exists. Otherwise convert HTML to plain text: de
 
 ```markdown
 # Quarterly plan
+
+[Open in Gmail](https://mail.google.com/mail/?authuser=name%40gmail.com#all/<thread id>)
 
 ## 2026-09-26 08:14:03 -0700 — Ada Lovelace <ada@example.com>
 
@@ -270,6 +310,7 @@ Body of the message.
 source: messages
 id: "<chat guid>"
 title: "Ada Lovelace"
+source_url: "imessage://%2B15551212"
 day: YYYY-MM-DD
 timezone: America/Los_Angeles
 imported_at: 2026-09-27T18:04:11-07:00
@@ -286,6 +327,8 @@ On a new file, participants are the chat participants sorted by handle, raw UTF-
 
 ```markdown
 # Ada Lovelace
+
+[Open in Messages](imessage://%2B15551212)
 
 ## 2026-09-27 09:01:00 -0700 — Ada Lovelace
 
@@ -315,6 +358,7 @@ A sticker entry's body is `Sticker: <filename>` or `Sticker: sticker` when there
 source: calendar
 id: "<event id>/<occurrence start>"
 title: "Dentist"
+source_url: "ical://ekevent/20260927T220000Z/ABC123?method=show&options=more"
 day: YYYY-MM-DD
 timezone: America/Los_Angeles
 imported_at: 2026-09-27T18:04:11-07:00
@@ -337,6 +381,8 @@ Timed `start` and `end` are RFC3339 in the event's time zone. All-day `start` an
 
 ```markdown
 # Dentist
+
+[Open in Calendar](ical://ekevent/20260927T220000Z/ABC123?method=show&options=more)
 
 Cleaning.
 
@@ -373,6 +419,7 @@ Stdout gets one line per slice: `YYYY-MM-DD gmail=<files> messages=<files> calen
 - A Gmail fetch failure writes nothing for that day, including Messages and Calendar. A crash while renaming an appended file leaves the previous file in place.
 - A second catch-up the same day, with no items at or after the cursor, writes nothing and advances the cursor to the new frozen end.
 - A message at 15:00 is absent from a 10:00 run and present after an 18:00 run. A message at 09:00 stays in the section written by the run whose window covered 09:00.
+- A new file's `source_url` and its `Open in` link stay in place when later messages are appended. Deleting day directories does not delete `<vault>/.pkmagent` or `<vault>/.pkmagent/secrets`.
 
 ## Worked example
 
