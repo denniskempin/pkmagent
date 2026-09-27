@@ -118,7 +118,7 @@ For civil date `D`, the slice is the intersection of the window with that date:
 A catch-up that starts at 10:00 and runs again at 18:00 visits only today. The slice is 10:00 inclusive through 18:00 exclusive. Mail from 11:00 is included. Mail from 09:00 is not.
 
 1. At startup, delete every file or directory under the inbox whose name starts with `.tmp-`.
-2. Fetch Gmail, Messages, and Calendar for the slice. If any fetch fails, do not write, and stop the run. The cursor stays where the previous successful slice left it.
+2. Fetch Gmail, Messages, and Calendar for the slice. The three fetches run in parallel with other days, as defined under Parallel import. If any fetch for this day fails, do not write this day or any later day, and stop the run. The cursor stays where the previous successful slice left it.
 3. If the slice has no items, write nothing. Count the slice as published.
 4. Otherwise append or create files as defined below.
 5. On catch-up, after every write for the slice has succeeded, set `last_success_at` to `slice_end`. If that is still before `window_end`, continue to the next date. If it equals `window_end`, the run is finished.
@@ -127,6 +127,34 @@ A catch-up that starts at 10:00 and runs again at 18:00 visits only today. The s
 A write failure stops the slice. Files already appended in that slice stay appended. The cursor is not advanced, so the next run reads the slice again and skips message ids already in those files. A leftover `.tmp-` file is removed on the next startup.
 
 The first day of a catch-up failing leaves a missing cursor missing, and leaves an existing cursor unchanged. A failure on a later day keeps the cursor at that day's `slice_start`, which is local midnight when the previous day was fully published.
+
+## Parallel import
+
+A job is one source fetch for one civil date: Gmail, Messages, or Calendar. A window of three days has nine jobs. `--day` has three.
+
+Fetches run concurrently. At most one fetch per source runs at a time, so at most three jobs run together. Messages stays a single read of `chat.db`. Gmail stays a single request stream. Calendar stays a single EventKit query stream. The next date for a source starts only after that source's earlier date has finished.
+
+Writes do not run in parallel. A day's files are appended only after all three of its fetches have succeeded and every earlier day in the window has been published. Results for a later day sit in memory until then.
+
+If a job fails, the tool starts no further jobs. In-flight jobs may finish, and their results are discarded. The failed day is not written. Later days are not written.
+
+## Progress
+
+Import shows one progress bar on stderr. It is one line, redrawn with a carriage return. It is not a full-screen interface: no alternate screen, no panels, and no mouse.
+
+The line is:
+
+```text
+import <done>/<total> [<bar>] <source> <YYYY-MM-DD>
+```
+
+`<total>` is the number of jobs. `<done>` is how many of those jobs have finished successfully. `<bar>` is 20 columns. The number of `=` characters is `floor(20 * done / total)`. When `done` is less than `total`, the next column is `>`. The remaining columns are spaces. When every job has finished, the bar is 20 `=` characters. The label is the source and date of the job that most recently finished. Before the first job finishes, the label is `starting`.
+
+```text
+import  4/9 [========>           ] messages 2026-09-27
+```
+
+Draw this line only when stderr is a terminal. When stderr is not a terminal, print no progress line. The per-day stdout summary is unchanged either way. After the last update, write a newline so the next stderr line is not appended to the bar. A failed job stops the bar, then the failure line follows on stderr.
 
 ## Append and create
 
@@ -280,7 +308,9 @@ participants:
 
 `timezone` is the IANA name of the machine's local zone. On a new file, `participants` is the union of From, To, Cc, and Bcc on the messages in that file, unique by email address, sorted by email. Use an empty name when the display name is unknown. `title` is the display title used for the new file. Later participants appear in appended sections and are not added to this list.
 
-Use `text/plain` when that part exists. Otherwise convert HTML to plain text: decode entities, drop `script` and `style`, keep quoted text, and render a link as `label (url)` when the label differs from the url. Do not download attachments.
+When the message has an HTML body, convert that HTML to Markdown and use the Markdown as the section body. Keep paragraphs, line breaks, headings, lists, emphasis, links, and block quotes. Render a link as `[label](url)`, using the url as the label when the label is empty. Render `blockquote` and `div.gmail_quote` as Markdown quotes. Drop `script` and `style`. Do not download attachments or remote images. An `img` whose `src` is `http` or `https` becomes `![alt](src)`, with empty alt when the image has none. Leave a `cid:` image out of the body; its file still appears in the attachment list.
+
+If the message has no HTML, or the conversion is only whitespace and a `text/plain` body exists, use `text/plain` as the section body. If neither body yields text, the section body is empty. Quoted history stays in whichever body is used.
 
 ```markdown
 # Quarterly plan
@@ -399,7 +429,7 @@ Omit the description or the URL line when the source has none.
 | `1` | Invalid arguments, corrupt state, missing OAuth client on `auth`, clock went backward, or the lock exists. No file was created or appended. |
 | `2` | A requested source failed. Earlier slices in a catch-up window may already have been published. A fetch failure leaves that day unchanged. A write failure may leave earlier appends from that slice in place. |
 
-Stdout gets one line per slice: `YYYY-MM-DD gmail=<files> messages=<files> calendar=<files>`. `<files>` counts files created or appended, not files left unchanged and not individual messages. Stderr gets `YYYY-MM-DD failed <source>: <reason>` for a failed slice.
+Stdout gets one line per published slice: `YYYY-MM-DD gmail=<files> messages=<files> calendar=<files>`. `<files>` counts files created or appended, not files left unchanged and not individual messages. Stderr gets the progress bar while the run is going, then `YYYY-MM-DD failed <source>: <reason>` for a failed slice.
 
 ## Edge cases
 
@@ -412,6 +442,7 @@ Stdout gets one line per slice: `YYYY-MM-DD gmail=<files> messages=<files> calen
 - An event whose start is at or after the frozen end is not imported by catch-up. A timed event later the same day is imported when a later run's window covers its start.
 - Changing the machine timezone can change which civil date an instant falls on. The next publish uses the timezone in effect at that run. All-day events still use the date Calendar.app displays.
 - Mail that arrived during the slice and was later archived is included. Spam, Trash, and Drafts are not.
+- HTML mail is stored as Markdown. A message whose HTML conversion is empty uses its plain-text body. A message with only plain text stays plain text.
 - An `internalDate` is included only when it falls inside the slice. A timestamp after the frozen end waits for the next run.
 - The same Gmail thread on Monday and Tuesday becomes two files. Each file receives only the messages whose timestamps fall on that day.
 - A Wednesday–Friday event becomes one file in Wednesday's folder. The frontmatter end is Friday. A later run does not append to that file.
