@@ -1,0 +1,22 @@
+{
+  "identifier": "00000000-0000-0000-0000-000000000001",
+  "contact_type": "person",
+  "display_name": "Ada Lovelace",
+  "organization": "Analytical Engines",
+  "job_title": "Mathematician",
+  "birthday": { "year": 1815, "month": 12, "day": 10 },
+  "phones": [{ "label": "mobile", "value": "+15551212" }],
+  "emails": [{ "label": "home", "value": "ada@example.com" }],
+  "addresses": [{
+    "label": "work",
+    "street": "123 Main St",
+    "sub_locality": "",
+    "city": "London",
+    "sub_administrative_area": "",
+    "state": "",
+    "postal_code": "",
+    "country": ""
+  }],
+  "urls": [{ "label": "homepage", "value": "https://example.com" }],
+  "note": "Note text."
+}

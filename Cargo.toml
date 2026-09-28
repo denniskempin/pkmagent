@@ -22,7 +22,8 @@ urlencoding = "2"
 rusqlite = { version = "0.40", features = ["bundled"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = ">=0.6.2, <0.8.0"
-objc2-foundation = { version = "0.3.2", features = ["NSArray", "NSData", "NSDate", "NSError", "NSObject", "NSString", "NSURL"] }
-objc2-event-kit = "0.3.2"
-block2 = ">=0.6.1, <0.8.0"
+objc2 = "=0.6.2"
+objc2-foundation = { version = "=0.3.2", features = ["NSArray", "NSCalendar", "NSData", "NSDate", "NSError", "NSObject", "NSString", "NSURL"] }
+objc2-event-kit = "=0.3.2"
+objc2-contacts = "=0.3.2"
+block2 = "=0.6.1"
