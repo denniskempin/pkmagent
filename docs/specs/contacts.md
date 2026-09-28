@@ -1,29 +1,27 @@
 # Contacts
 
-See [overview.md](overview.md). This command is separate from collect. Collect reads `<vault>/contacts` for wiki links and does not write it.
-
-## Command
-
-`pkmagent import-contacts` reads the macOS Contacts store and writes `<vault>/contacts`. It does not change `last_success_at`, does not use `collect.lock`, and takes no `--since` or `--day`. `--inbox` selects the vault.
-
-It uses `contacts.lock` the same way collect uses `collect.lock`.
+See [overview.md](overview.md). Gmail, Messages, and Calendar read `<vault>/contacts` for wiki links. Only `import contacts` writes that directory.
 
 ## Fetch
 
-Use the Contacts framework, read-only. Include every person Contacts can see. Skip groups and containers.
+Use the Contacts framework, read-only. Skip groups and containers. A permission failure fails the category, leaves existing files as they are, and exits `2`.
 
-A permission failure writes nothing, leaves `contacts/` as it is, and exits `2`.
+The instant for collect is the contact's modification time. A contact with no modification time is skipped by collect and still included by import.
 
-## Files
+Import includes every person Contacts can see. Collect includes people whose modification time falls in the slice.
 
-One file per person, directly in `<vault>/contacts/`. The stable id is the Contacts framework identifier. Create `contacts/` if it is missing. Write files directly. There is no temporary file.
+## Import
 
-Match an existing file by frontmatter `id`.
+`pkmagent import contacts` writes `<vault>/contacts/`. One file per person. The stable id is the Contacts framework identifier. Create the directory if it is missing.
 
 - No file for that id: create one. The display title is the display name, or the organization name for a company record, or `untitled`. The body is the note.
 - A file for that id: replace the front matter with the current record. Leave the body bytes unchanged, including when the note or the display name changed. Do not rename the file. `title` stays the existing filename. `imported_at` stays the existing value.
 - After those writes, delete Markdown files in `contacts/` whose frontmatter `id` is absent from this snapshot.
 - Leave a file that has no frontmatter `id`.
+
+## Collect
+
+`pkmagent collect contacts` writes new files in the run folder. It does not update `<vault>/contacts`. The display title is chosen the same way as a new import file. The body is the note.
 
 ## Source link
 
@@ -61,6 +59,3 @@ On a new file, after the source link, the body is the contact's note. Omit it wh
 Note text.
 ```
 
-## Progress
-
-One status line, same shape as the overview, with source `contacts` and `<total>` equal to the number of people. The label is the display title of the person most recently written, or `waiting`. Stdout on success: `contacts=<files>`, the number of files written.

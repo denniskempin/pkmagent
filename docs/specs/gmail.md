@@ -1,14 +1,18 @@
 # Gmail
 
-See [overview.md](overview.md). Collected by `pkmagent collect`.
+See [overview.md](overview.md).
 
 ## Fetch
 
 Use the Gmail API with the stored readonly credential. One account.
 
-Include every message whose `internalDate` falls in the slice, received or sent, including archived mail. Ignore the `Date` header. Exclude Spam, Trash, and Drafts. `internalDate` is the window instant.
+Include messages that were received or sent, including archived mail. Ignore the `Date` header. Exclude Spam, Trash, and Drafts. `internalDate` is the instant used for a collect window. Import includes every such message. Collect includes those whose `internalDate` falls in the slice.
 
 Group by thread id within the output directory. Oldest `internalDate` first. Ties break by Gmail message id, ascending.
+
+## Import
+
+`pkmagent import gmail` writes `<vault>/gmail/`. One file per thread. An existing file is rewritten in place: front matter and body match the thread as it is now, the filename stays, and `imported_at` stays.
 
 ## Files
 
