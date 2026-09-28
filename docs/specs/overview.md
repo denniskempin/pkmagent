@@ -1,47 +1,58 @@
 # pkmagent
 
-`pkmagent` is a local read-only importer. It pulls Gmail, macOS Messages, and macOS Calendar into a Markdown inbox. Contacts is a separate import into `<vault>/contacts` and is not part of catch-up.
+`pkmagent` is a local read-only importer. `pkmagent collect` pulls Gmail, macOS Messages, and macOS Calendar into a Markdown inbox. `pkmagent import-contacts` writes `<vault>/contacts` and is not part of collect.
 
 - [gmail.md](gmail.md)
 - [messages.md](messages.md)
 - [calendar.md](calendar.md)
 - [contacts.md](contacts.md)
 
-Source specs define what to fetch, stable ids, filenames, source URLs, and extra fields. This file defines the vault, the cursor, publishing, and the shared note format.
+Source specs define what to fetch, stable ids, filenames, source URLs, and extra fields. This file defines the vault, the cursor, a collect run, and the shared note format.
 
 ## Workflow
 
-The inbox is a drop zone. The tool does not empty it. Leftover files stay, and the next import appends to a leftover file with the same id, or creates a file when none is left. Catch-up state lives in `<vault>/.pkmagent`, outside the inbox, so emptying day folders does not repeat items.
+The inbox is a drop zone. The tool does not empty it. Each collect writes a new folder and does not read or modify older ones. Catch-up state lives in `<vault>/.pkmagent`, outside the inbox.
 
-The cursor is a timestamp, the exclusive end of the last successful catch-up. A run at 18:00 after a 10:00 run imports only items from 10:00 onward.
+The cursor is a timestamp, the exclusive end of the last successful collect. A run at 18:00 after a 10:00 run collects only items from 10:00 onward, into a new folder.
 
 ## Vault layout
 
 The vault is the parent of the inbox. The default inbox is `./inbox`, so the default vault is the working directory. `--inbox PATH` replaces the inbox. The tool creates the inbox if it is missing.
 
+A collect names its folder from the run's start time, local offset, as `YYYY-MM-DDTHHMMSS±HHMM` with the colons removed: `2026-09-27T100000-0700`. If that name exists, append `-2`, `-3`, and so on.
+
+The folder holds `gmail/`, `messages/`, and `calendar/` directly when the run covers one or two civil dates. When it covers more than two, those source directories sit under a `YYYY-MM-DD/` layer, one per civil date that receives a file.
+
 ```text
 <vault>/
   .pkmagent/
     state.json
-    import.lock
+    collect.lock
   .pkmagent/secrets/
     gmail-client.json
     gmail.json
   inbox/
-    2026-09-27/
+    2026-09-27T100000-0700/
       gmail/
         Quarterly plan.md
       messages/
         Ada Lovelace.md
       calendar/
         Dentist.md
+    2026-09-25T100000-0700/
+      2026-09-25/
+        gmail/
+          Quarterly plan.md
+      2026-09-27/
+        calendar/
+          Dentist.md
   contacts/
     Ada Lovelace.md
 ```
 
-`YYYY-MM-DD` is the local civil day the item happened, not the day the import started. A timezone change can move an instant to a different civil date; a later run uses the zone in effect then.
+A civil date is the local day the item happened, not the day the collect started. A timezone change can move an instant onto another civil date. A later run uses the zone in effect then.
 
-The tool writes inbox files, `<vault>/contacts` for `import contacts`, and `<vault>/.pkmagent`. It deletes leftover inbox paths whose names start with `.tmp-`, and contacts files only as [contacts.md](contacts.md) describes. It does not delete other Markdown files or day directories.
+Collect writes only its new inbox folder and `<vault>/.pkmagent`. It does not delete inbox folders. `import-contacts` writes `<vault>/contacts` only, as [contacts.md](contacts.md) describes.
 
 ## Vault config and secrets
 
@@ -49,8 +60,9 @@ Create `<vault>/.pkmagent/` and `<vault>/.pkmagent/secrets/` when needed. The se
 
 | Path | Purpose |
 | --- | --- |
-| `<vault>/.pkmagent/state.json` | Catch-up cursor. |
-| `<vault>/.pkmagent/import.lock` | Exclusive lock while an import is running. |
+| `<vault>/.pkmagent/state.json` | Collect cursor. |
+| `<vault>/.pkmagent/collect.lock` | Exclusive lock while collect is running. |
+| `<vault>/.pkmagent/contacts.lock` | Exclusive lock while `import-contacts` is running. |
 | `<vault>/.pkmagent/secrets/gmail-client.json` | OAuth client supplied by the user. Keys: `client_id`, `client_secret`. |
 | `<vault>/.pkmagent/secrets/gmail.json` | Refresh token for the one authorized Gmail account. |
 
@@ -58,7 +70,7 @@ Create `<vault>/.pkmagent/` and `<vault>/.pkmagent/secrets/` when needed. The se
 {"last_success_at": "2026-09-27T18:04:11-07:00"}
 ```
 
-`last_success_at` is RFC3339 with a numeric offset. A missing file, or a file whose only value is `null`, means catch-up has never succeeded. Any other shape is corrupt: write nothing and exit `1`.
+`last_success_at` is RFC3339 with a numeric offset, to the second. A missing file, or a file whose only value is `null`, means collect has never succeeded. Any other shape is corrupt: write nothing and exit `1`.
 
 Do not print tokens, client secrets, or message bodies.
 
@@ -68,34 +80,34 @@ Do not print tokens, client secrets, or message bodies.
 
 Authorize one Gmail account for `https://www.googleapis.com/auth/gmail.readonly` and store the refresh token in `gmail.json`, replacing any previous account. The client file must already exist; if it is missing, exit `1`. `--inbox` selects the vault. This command does not change the cursor.
 
-### `pkmagent import`
+### `pkmagent collect`
 
-Catch up from the cursor through the time the run starts. Freeze that end before fetching. Items that arrive during the run wait for the next run.
+Collect from the cursor through the time the run starts. Freeze that end before fetching and floor it to the whole second. Items that arrive during the run, including the rest of that second, wait for the next run.
 
 - No cursor: `--since YYYY-MM-DD` is required. The window starts at local midnight at the start of that date. A `--since` midnight after the frozen end is rejected.
 - Cursor present: reject `--since`. The window starts at `last_success_at`.
 - Include items with `window_start <= t < window_end`. On success the cursor becomes `window_end`.
 - If the frozen end is earlier than the cursor, exit `1` and write nothing. If they are equal, exit `0`, write nothing, and leave the cursor unchanged.
 
-Publish days from oldest to newest. A later day is not published if an earlier day failed. `--day` cannot be combined with `--since`.
+`--day` cannot be combined with `--since`.
 
-### `pkmagent import --day YYYY-MM-DD`
+### `pkmagent collect --day YYYY-MM-DD`
 
-Append missing items for that one local civil day, midnight inclusive through the next midnight exclusive. Do not change the cursor. This can import items the cursor has already passed.
+Collect that one local civil day, midnight inclusive through the next midnight exclusive, into a new folder. Do not change the cursor. This can collect items the cursor has already passed.
 
-### `pkmagent import contacts`
+### `pkmagent import-contacts`
 
-See [contacts.md](contacts.md).
+See [contacts.md](contacts.md). It does not take collect's flags, does not use `collect.lock`, and does not read the cursor.
 
 ### Shared rules
 
 `--inbox PATH` is optional on every command.
 
-One import at a time. If `import.lock` exists, exit `1` and tell the user to delete it when no import is running. Remove the lock when the process exits. A crash can leave it. There is no `--force`.
+One collect at a time. If `collect.lock` exists, exit `1` and tell the user to delete it when no collect is running. Remove the lock when the process exits. A crash can leave it. There is no `--force`. `import-contacts` has the same rule for `contacts.lock`.
 
-## Publishing a day
+## A collect run
 
-Visit every local civil date from the date of `window_start` through the date of the last instant inside the window. Step by civil date, not by 24-hour blocks, so a DST transition does not skip or repeat a date. An empty window visits no dates.
+Visit every local civil date from the date of `window_start` through the date of the last instant inside the window. Step by civil date, not by 24-hour blocks, so a DST transition does not skip or repeat a date. An empty window visits no dates. `--day` visits that one date.
 
 For civil date `D`:
 
@@ -103,23 +115,21 @@ For civil date `D`:
 - `slice_end` is the earlier of `window_end` and local midnight at the start of `D+1`.
 - Include items with `slice_start <= t < slice_end`.
 
-Each source spec defines the instant `t`.
+Each source spec defines the instant `t`. For `--day`, the slice is the whole civil day.
 
-1. At startup, delete inbox paths whose names start with `.tmp-`.
-2. Fetch all three sources for the slice. Fetches follow Parallel import. If one fails, do not write this day or any later day.
-3. If the slice has nothing new to write, write nothing.
-4. Otherwise append or create, as below and in the source specs.
-5. On catch-up, a published slice sets `last_success_at` to `slice_end`. Continue until that equals `window_end`. A slice with nothing new is still published.
+Fetches follow Parallel collect. Write files only after every fetch has succeeded. Write them directly into the new folder. There is no temporary file and no rename into place.
 
-`--day` uses steps 2 through 4 for that date and does not change the cursor.
+One or two civil dates: files go in `<run>/gmail/`, `<run>/messages/`, and `<run>/calendar/`. A thread or chat is one file for the whole run, and every event occurrence goes in `<run>/calendar/`. More than two civil dates: files go in `<run>/YYYY-MM-DD/<source>/`. A thread or chat is one file per date, and an event occurrence goes under its civil date.
 
-A write failure is not published. Appends already made stay, and the cursor does not advance, so the next run reads that slice again and skips ids already in the files. If nothing in the run has been published, a missing cursor stays missing.
+Create the run folder only when there is a file to write. On success, set `last_success_at` to `window_end`. `--day` does not change the cursor.
 
-## Parallel import
+If a fetch fails, write no folder and leave the cursor unchanged. If a write fails, leave the cursor unchanged. The run folder may already contain files. The next collect does not open it. It starts a new folder for the same window.
+
+## Parallel collect
 
 A job is one source fetch for one civil date. At most one fetch per source runs at a time. The next date for a source starts after that source's earlier date finishes.
 
-Write a day only after its three fetches have succeeded and every earlier day has been published. If a job fails, start no further jobs and discard in-flight results.
+If a job fails, start no further jobs and discard in-flight results. Do not write the run folder.
 
 ## Progress
 
@@ -131,18 +141,13 @@ messages 1/3 [======>             ] 2026-09-26
 calendar 0/3 [                    ] waiting
 ```
 
-When stderr is not a terminal, print no progress. On failure, stop the bars and print `YYYY-MM-DD failed <source>: <reason>`.
+When stderr is not a terminal, print no progress. On failure, print `YYYY-MM-DD failed <source>: <reason>` to stderr either way.
 
-`pkmagent import contacts` uses one line of the same shape. See [contacts.md](contacts.md).
+`import-contacts` uses one line of the same shape. See [contacts.md](contacts.md).
 
-## Append and create
+## Files
 
-Look only in `inbox/YYYY-MM-DD/<source>/`. Gmail and Messages append sections to a file with the same frontmatter `id`. If several files share that id, append to the path that sorts first by raw UTF-8 bytes. If none remains, create a file that contains only the new items. Calendar does not append; see [calendar.md](calendar.md).
-
-- A file with no frontmatter `id` is never modified. It still occupies its filename.
-- An append does not change existing bytes, front matter, or the filename. Skip items the file already contains. Match keys are in the source specs.
-- New sections follow the new-file Markdown, oldest first.
-- Write the full new contents to a sibling whose name starts with `.tmp-`, then rename it into place.
+A collect only creates files. One file per stable id in the directory it is written to. Gmail and Messages put every item for that id in that directory into the one file, oldest first.
 
 ## Filenames
 
@@ -158,7 +163,7 @@ Sanitizing a title:
 6. Truncate to 80 Unicode scalar values.
 7. If the UTF-8 filename including `.md` would exceed 200 bytes after a suffix, truncate the title further until it fits.
 
-Create files in ascending raw UTF-8 order of stable id, so collisions are deterministic. Prefer `Title.md`. If that name is taken, including a case-insensitive match in the directory or among files created in this slice, use `Title--<suffix>.md`. The suffix is the stable id sanitized the same way, truncated to 40 Unicode scalar values. If that name is taken, append `-2`, `-3`, and so on.
+Create files in ascending raw UTF-8 order of stable id, so collisions are deterministic. Prefer `Title.md`. If that name is taken, including a case-insensitive match in the directory or among files created in this directory, use `Title--<suffix>.md`. The suffix is the stable id sanitized the same way, truncated to 40 Unicode scalar values. If that name is taken, append `-2`, `-3`, and so on.
 
 ## Note format
 
@@ -177,7 +182,7 @@ day: YYYY-MM-DD
 timezone: America/Los_Angeles
 ```
 
-`source` is `gmail`, `messages`, `calendar`, or `contacts`. `imported_at` is RFC3339 with a numeric offset, set when the file is created. `day` is the inbox folder date. `timezone` is the machine's IANA zone. Contacts notes omit `day` and `timezone`.
+`source` is `gmail`, `messages`, `calendar`, or `contacts`. `imported_at` is RFC3339 with a numeric offset, set when the file is created. `day` is the civil date of the earliest item in the file. In a dated run that is the date folder. `timezone` is the machine's IANA zone. Contacts notes omit `day` and `timezone`.
 
 Source specs add fields after these. Omit an optional field when the source has no value.
 
@@ -193,7 +198,7 @@ Attachments, when present, are a list under `### Attachments`. Each item is `fil
 
 ### Contact wiki links
 
-When writing a new inbox file or appending a section, resolve addresses against `<vault>/contacts`. Do not rewrite text already in the inbox. If `contacts/` is missing, leave addresses as the source wrote them.
+When collect writes a file, it resolves addresses against `<vault>/contacts`. It does not write that directory. If `contacts/` is missing, leave addresses as the source wrote them.
 
 Use contact files that have a frontmatter `id`. The contact title is the filename without `.md`. Match `phones[].value` and `emails[].value` from that file's front matter. See [contacts.md](contacts.md).
 
@@ -205,29 +210,39 @@ In the body, a matched person is `[[<title>]]`. With an email, write `[[Ada Love
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Every requested slice was published, including a slice with nothing new to write. |
-| `1` | Bad arguments, corrupt state, missing OAuth client, clock went backward, or the lock exists. Nothing was written. |
-| `2` | A source failed. Earlier slices in the window may already be published. A fetch failure leaves that day unchanged. A write failure may leave earlier appends from that slice. |
+| `0` | The run finished. A window with nothing to write is success. |
+| `1` | Bad arguments, corrupt state, missing OAuth client, clock went backward, or the command's lock exists. Nothing was written. |
+| `2` | A source failed. The cursor is unchanged. No run folder is left when the failure was a fetch. A write failure can leave that run's folder in place. |
 
-Stdout, one line per published slice: `YYYY-MM-DD gmail=<files> messages=<files> calendar=<files>`. Count files created or appended, not files left unchanged.
+Stdout begins with the run folder path when one was created. Then one line: `gmail=<files> messages=<files> calendar=<files>`. A dated run prints that line once per date that received a file, prefixed with `YYYY-MM-DD`. An empty success prints `gmail=0 messages=0 calendar=0` and no folder path.
 
 ## Worked example
 
 Timezone `America/Los_Angeles`, no cursor. At 10:00 on 2026-09-27:
 
 ```text
-pkmagent import --since 2026-09-26
+pkmagent collect --since 2026-09-26
 ```
 
-The window is `2026-09-26T00:00:00-07:00` inclusive through `2026-09-27T10:00:00-07:00` exclusive. The run writes `2026-09-26` and items on `2026-09-27` before 10:00. A thread with mail on both days becomes two Gmail files. A message at 11:00 is not included. A dentist appointment on 2026-09-30 is not included. `last_success_at` becomes `2026-09-27T10:00:00-07:00`.
+The window is `2026-09-26T00:00:00-07:00` inclusive through `2026-09-27T10:00:00-07:00` exclusive. That is two civil dates, so the folder is flat:
 
-The user leaves today's Gmail file in the inbox. At 18:00, `pkmagent import` covers 10:00 inclusive through 18:00 exclusive. The 11:00 message is appended. The 09:00 section and the filename stay. The cursor becomes `2026-09-27T18:00:00-07:00`.
+```text
+inbox/2026-09-27T100000-0700/
+  gmail/
+  messages/
+  calendar/
+```
 
-If that file was removed first, the 18:00 run creates a new file with only the messages from 10:00 onward.
+A thread with mail on both days becomes one Gmail file containing both messages. A message at 11:00 is not included. A dentist appointment on 2026-09-30 is not included. `last_success_at` becomes `2026-09-27T10:00:00-07:00`. The morning folder stays as it was.
+
+At 18:00, `pkmagent collect` covers 10:00 inclusive through 18:00 exclusive. That is one civil date, written to a new folder `inbox/2026-09-27T180000-0700/`. The 11:00 message is a new file there. The 10:00 folder is not opened.
+
+The same morning command with `--since 2026-09-25` covers three civil dates, so each file is under `2026-09-25/`, `2026-09-26/`, or `2026-09-27/` inside the run folder. The thread's Monday mail and Tuesday mail are two files.
 
 ## Out of scope
 
 - Sources other than Gmail, the local Messages database, EventKit, and the Contacts framework.
 - The Google Calendar REST API.
 - More than one Gmail account.
-- A separate database of imported ids. The Markdown files are the record.
+- A separate database of collected ids. The cursor is the record.
+- Resuming or deleting a run folder left behind by a crashed collect.

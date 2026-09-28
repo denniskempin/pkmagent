@@ -1,6 +1,6 @@
-# Calendar import
+# Calendar
 
-See [overview.md](overview.md).
+See [overview.md](overview.md). Collected by `pkmagent collect`.
 
 ## Fetch
 
@@ -15,8 +15,6 @@ Include accepted, tentative, not-yet-responded, declined, and cancelled events t
 ## Files
 
 The stable id is the event identifier, a slash, and the occurrence start (`YYYY-MM-DD` for all-day, RFC3339 for timed).
-
-If that id is already in the day's `calendar/` directory, leave the file unchanged, including when the event later changes or is cancelled. Otherwise create one. Do not append.
 
 The display title is the event title, or `untitled`.
 

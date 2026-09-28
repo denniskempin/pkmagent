@@ -1,12 +1,12 @@
-# Contacts import
+# Contacts
 
-See [overview.md](overview.md). Catch-up does not read or write `<vault>/contacts`.
+See [overview.md](overview.md). This command is separate from collect. Collect reads `<vault>/contacts` for wiki links and does not write it.
 
 ## Command
 
-`pkmagent import contacts` reads the macOS Contacts store and writes `<vault>/contacts`. It does not change `last_success_at` and uses the same import lock. It takes no `--since` or `--day`.
+`pkmagent import-contacts` reads the macOS Contacts store and writes `<vault>/contacts`. It does not change `last_success_at`, does not use `collect.lock`, and takes no `--since` or `--day`. `--inbox` selects the vault.
 
-Running it again replaces the snapshot.
+It uses `contacts.lock` the same way collect uses `collect.lock`.
 
 ## Fetch
 
@@ -16,14 +16,14 @@ A permission failure writes nothing, leaves `contacts/` as it is, and exits `2`.
 
 ## Files
 
-One file per person, directly in `<vault>/contacts/`. The stable id is the Contacts framework identifier.
+One file per person, directly in `<vault>/contacts/`. The stable id is the Contacts framework identifier. Create `contacts/` if it is missing. Write files directly. There is no temporary file.
 
-The display title is the display name, or the organization name for a company record, or `untitled`.
+Match an existing file by frontmatter `id`.
 
-- Write each current person as a full record, replacing any previous file for that id.
+- No file for that id: create one. The display title is the display name, or the organization name for a company record, or `untitled`. The body is the note.
+- A file for that id: replace the front matter with the current record. Leave the body bytes unchanged, including when the note or the display name changed. Do not rename the file. `title` stays the existing filename. `imported_at` stays the existing value.
 - After those writes, delete Markdown files in `contacts/` whose frontmatter `id` is absent from this snapshot.
 - Leave a file that has no frontmatter `id`.
-- Write through a sibling `.tmp-` file, then rename. Create `contacts/` if it is missing.
 
 ## Source link
 
@@ -55,7 +55,7 @@ urls:
 
 ## Body
 
-After the source link, the body is the contact's note. Omit it when the contact has none.
+On a new file, after the source link, the body is the contact's note. Omit it when the contact has none. An existing file keeps whatever body it already has.
 
 ```markdown
 Note text.
@@ -63,4 +63,4 @@ Note text.
 
 ## Progress
 
-One status line, same shape as the overview, with source `contacts` and `<total>` equal to the number of people. The label is the display title most recently written, or `waiting`. Stdout on success: `contacts=<files>`, the number of files written.
+One status line, same shape as the overview, with source `contacts` and `<total>` equal to the number of people. The label is the display title of the person most recently written, or `waiting`. Stdout on success: `contacts=<files>`, the number of files written.

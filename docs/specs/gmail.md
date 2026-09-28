@@ -1,6 +1,6 @@
-# Gmail import
+# Gmail
 
-See [overview.md](overview.md).
+See [overview.md](overview.md). Collected by `pkmagent collect`.
 
 ## Fetch
 
@@ -8,13 +8,13 @@ Use the Gmail API with the stored readonly credential. One account.
 
 Include every message whose `internalDate` falls in the slice, received or sent, including archived mail. Ignore the `Date` header. Exclude Spam, Trash, and Drafts. `internalDate` is the window instant.
 
-Group the slice by thread id. Oldest `internalDate` first. Ties break by Gmail message id, ascending.
+Group by thread id within the output directory. Oldest `internalDate` first. Ties break by Gmail message id, ascending.
 
 ## Files
 
-The stable id is the thread id. Skip a message whose Gmail API message id is already on a `- Message-Id:` line in the matched file.
+The stable id is the thread id.
 
-The display title of a new file is the subject of the chronologically last message in that new file, keeping `Re:` and `Fwd:`. An empty subject is `(no subject)`.
+The display title is the subject of the chronologically last message in that file, keeping `Re:` and `Fwd:`. An empty subject is `(no subject)`.
 
 ## Source link
 
@@ -37,7 +37,7 @@ participants:
     email: ada@example.com
 ```
 
-`participants` is From, To, Cc, and Bcc on the messages in the new file, unique by email, sorted by email. `name` is the contact title when the email matches, otherwise the header display name, or empty. Later messages do not update this list.
+`participants` is From, To, Cc, and Bcc on the messages in the file, unique by trimmed email, case-insensitive, sorted by email. `name` is the contact title when the email matches, otherwise the header display name. Two display names for one email use the first in that order.
 
 ## Message sections
 
@@ -52,4 +52,4 @@ participants:
 Body of the message.
 ```
 
-`Message-Id` is the Gmail API message id. Omit empty `Cc` and `Bcc`. A later message with a different subject gets its own `Subject` line. Attachments follow the overview.
+`Message-Id` is the Gmail API message id. Every section has a `Subject` line. An empty subject is `(no subject)`. Omit empty `Cc` and `Bcc`. Attachments follow the overview.

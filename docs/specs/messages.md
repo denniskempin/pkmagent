@@ -1,20 +1,20 @@
-# Messages import
+# Messages
 
-See [overview.md](overview.md).
+See [overview.md](overview.md). Collected by `pkmagent collect`.
 
 ## Fetch
 
-Read `~/Library/Messages/chat.db` read-only. The process needs Full Disk Access. A locked database or a permission failure fails that day's fetch.
+Read `~/Library/Messages/chat.db` read-only. The process needs Full Disk Access. A locked database or a permission failure fails the collect.
 
 Include every chat, including groups and messages the user sent. Include text, attachment-only messages, tapbacks, and stickers, each as its own entry. Omit unsent messages.
 
-The window instant is the sent time, not the read time. Group by chat. Oldest first. Ties break by database message id, ascending.
+The window instant is the sent time, not the read time. Group by chat within the output directory. Oldest first. Ties break by database message id, ascending.
 
 ## Files
 
-The stable id is the chat guid. Skip an entry whose database message id is already on an `- Id:` line in the matched file.
+The stable id is the chat guid.
 
-Display title for a new file:
+Display title:
 
 | Chat | Title |
 | --- | --- |
@@ -41,12 +41,11 @@ A direct chat is `imessage://%2B15551212`. A group chat is `imessage://%2B155512
 participants:
   - name: "Ada Lovelace"
     handle: "+15551212"
-  - name: ""
-    handle: "me@icloud.com"
+  - handle: "me@icloud.com"
     self: true
 ```
 
-Participants on a new file are the chat members sorted by handle, raw UTF-8. The user's account has `self: true`. `name` is the contact title when the handle matches, otherwise the Messages display name, otherwise empty.
+Participants are the chat members sorted by handle, raw UTF-8. The user's account has `self: true`. `name` is the contact title when the handle matches, otherwise the Messages display name. Omit `name` when that is empty.
 
 ## Message sections
 
