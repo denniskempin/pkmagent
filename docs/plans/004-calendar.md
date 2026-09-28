@@ -58,12 +58,7 @@ Also depend directly on `objc2` (`>=0.6.2, <0.8.0`), `objc2-foundation` (`^0.3.2
 
 Percent-encode the calendar item id in this module. Unreserved bytes are `A-Z a-z 0-9 - . _ ~`. Every other UTF-8 byte is `%` plus two uppercase hex digits. No extra crate.
 
-The macOS binary embeds an `Info.plist` section so the full-access prompt has a reason string:
-
-- `NSCalendarsFullAccessUsageDescription` — macOS 14 and later
-- `NSCalendarsUsageDescription` — earlier macOS
-
-Both values are `pkmagent reads your calendars to copy events into the inbox.` A `build.rs` passes `-Wl,-sectcreate,__TEXT,__info_plist,<path>` to the `pkmagent` bin on `cfg(target_os = "macos")` only.
+The calendar prompt uses the shared `Info.plist` in [001-foundation.md](001-foundation.md). This module does not add another `__info_plist` section.
 
 ## Permission
 
@@ -236,7 +231,7 @@ Live email comes from the participant `URL`. A string whose scheme is `mailto`, 
 
 ## Body
 
-`body` is the markdown after the source link. It does not contain the link, the title heading, or a leading blank line. Sections that are present are separated by one blank line. The string does not end with a newline.
+`body` is the markdown after the source link. It does not contain the link or the title heading. When description, attendees, and the event URL are all omitted, `body` is `""`. Otherwise it has no leading newline, sections are separated by one blank line, and the string ends with one trailing newline, matching the foundation rule for every `CollectedItem`.
 
 1. The description is the event notes with surrounding whitespace trimmed. Omit it when that trim is empty.
 2. `## Attendees`, a blank line, then one line per attendee, when the list is non-empty.
@@ -335,7 +330,7 @@ Default slice in these tests: `America::Los_Angeles`, `start` `2026-09-27T00:00:
 - `declined_event_is_included`. `declined.json` yields one item with `status: declined`.
 - `cancelled_event_is_included`. `cancelled.json` yields one item with `status: cancelled` even though `user_status` is `accepted`. The result has one item. No second occurrence is created for a date absent from the file.
 - `missing_title_is_empty_display_title`. `missing_title.json` has `display_title` `""` and `empty_title_fallback` `untitled`. `location` and `attendees` are absent. The body is empty.
-- `attendees_resolve_sort_and_needs_action`. `attendees.json` with the Ada index: front matter `status` is `needs_action`. Attendees are Ada then Grace. Ada's `name` is `Ada Lovelace`. Grace's `name` is `Grace Hopper`. The body is the description, then `## Attendees`, then `- [[Ada Lovelace]] <ada@example.com> (accepted)`, then `- Grace Hopper <grace@example.com> (tentative)`, then `URL: https://example.com/appointment`. `location` is absent.
+- `attendees_resolve_sort_and_needs_action`. `attendees.json` with the Ada index: front matter `status` is `needs_action`. Attendees are Ada then Grace. Ada's `name` is `Ada Lovelace`. Grace's `name` is `Grace Hopper`. The body is the description, then `## Attendees`, then `- [[Ada Lovelace]] <ada@example.com> (accepted)`, then `- Grace Hopper <grace@example.com> (tentative)`, then `URL: https://example.com/appointment`. The string has no leading newline and one trailing newline. `location` is absent.
 - `pending_attendee_word_is_needs_action`. An attendee `status` of `pending` renders `(needs_action)` and front matter `status: needs_action`.
 - `omit_url_that_equals_source_url`. A record whose `url` equals the computed `ical://` URL has no `URL:` line.
 - `predicate_pad_covers_all_day_utc_midnight`. For the Tokyo slice `[2026-09-27T00:00:00+09:00, 2026-09-27T08:00:00+09:00)`, `predicate_interval` covers `2026-09-27T00:00:00Z`. For the Los Angeles midnight slice of 2026-09-27, it covers `2026-09-27T00:00:00Z` as well. Both spans are under four years.

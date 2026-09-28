@@ -33,10 +33,12 @@ Resolve the path as `$HOME/Library/Messages/chat.db`. If `HOME` is unset, fail w
 Open with rusqlite `OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI` and this URI:
 
 ```text
-file:<percent-encoded absolute path>?mode=ro&immutable=1
+file:<percent-encoded absolute path>?mode=ro
 ```
 
-Encode each byte of the absolute path except `A-Z a-z 0-9 / - _ .`. Use uppercase hex (`%20` for a space). `immutable=1` is query-only: SQLite does not take a write lock and does not create `chat.db-wal` or `chat.db-shm`. After a successful open, run `PRAGMA query_only = ON`.
+Encode each byte of the absolute path except `A-Z a-z 0-9 / - _ .`. Use uppercase hex (`%20` for a space). Do not set `immutable=1`. That flag skips the lock manager, so an open Messages.app still reads, and frames that exist only in the WAL can be missing. The spec requires a locked database to fail the category.
+
+After a successful open, run `PRAGMA query_only = ON` and `PRAGMA busy_timeout = 0`. `query_only` refuses writes. `busy_timeout = 0` makes a contended lock return immediately instead of waiting and then succeeding. A read still sees the WAL when the shared lock can be taken.
 
 Do not open `chat.db-wal` or `chat.db-shm` as the database. Do not read attachment files under `~/Library/Messages/Attachments`.
 
@@ -51,7 +53,7 @@ Full Disk Access is required. Without it, `open` fails with `EPERM` / `Operation
 
 A missing file uses the third row, not the Full Disk Access sentence.
 
-`immutable=1` skips SQLite's lock manager, so a database Messages.app already has open usually still opens, and a frame that exists only in an uncheckpointed WAL can be absent from the snapshot. Busy and locked still fail the category when SQLite returns those codes. That is the whole of the locked-database rule for this source.
+`SQLITE_BUSY` or `SQLITE_LOCKED` from the open or from any later statement fails the category with `Messages database is locked`. That includes Messages.app holding a lock this process cannot share. Do not retry.
 
 ## Tables and columns
 
@@ -154,7 +156,7 @@ Include a row that survives that filter:
    | 2004 | Emphasize |
    | 2005 | Question |
 
-   Any other type with a non-empty emoji uses the trimmed emoji as the custom name. A type outside the table with an empty emoji is omitted.
+   Any other type with a non-empty emoji uses the trimmed emoji as the custom name. A type outside that table with an empty emoji is not a reaction. Do not omit it here. Continue with the sticker and message rules. A normal text row has type `0` or null and no emoji, so it is a message.
 
 2. **Sticker**, when some joined attachment has `is_sticker != 0`. A reaction that also has a sticker attachment stays a reaction.
 
@@ -346,25 +348,25 @@ Message times are local on 2026-09-27 unless noted. `is_sent` is `1` except row 
 | --- | --- | --- | --- | --- | --- |
 | 100 | 1 | handle 1 | `See you there.` | seconds `812217660` (09:01) | Text. `attributedBody` is the bytes `not-a-stream`. `date_read` is `812300000`, outside slice A. guid `G100` |
 | 101 | 1 | from me | `On my way` | nanos `812217720000000000` (09:02) | Text, nanosecond magnitude |
-| 102 | 1 | from me | null | seconds `812217840` (09:03) | Like (`2001`). Target `p:0/G115` |
-| 103 | 1 | handle 1 | null | seconds `812217900` (09:04) | Attachment-only. `cache_has_attachments = 0`. guid `G103` |
-| 104 | 1 | handle 1 | null | seconds `812217960` (09:05) | Sticker |
-| 105 | 1 | handle 1 | null | seconds `812218020` (09:06) | Sticker with no filename |
-| 106 | 1 | from me | null | seconds `812218080` (09:07) | Love (`2000`). Target `p:0/G103` |
-| 107 | 1 | handle 1 | null | seconds `812218140` (09:08) | Laugh (`2003`). Target `p:0/does-not-exist` |
-| 108 | 1 | from me | `secret unsent body` | seconds `812218200` (09:09) | `is_sent = 0`. Omitted |
-| 109 | 1 | handle 1 | `secret retracted body` | seconds `812218260` (09:10) | `date_retracted` non-zero. Omitted |
+| 102 | 1 | from me | null | seconds `812217840` (09:04) | Like (`2001`). Target `p:0/G115` |
+| 103 | 1 | handle 1 | null | seconds `812217900` (09:05) | Attachment-only. `cache_has_attachments = 0`. guid `G103` |
+| 104 | 1 | handle 1 | null | seconds `812217960` (09:06) | Sticker |
+| 105 | 1 | handle 1 | null | seconds `812218020` (09:07) | Sticker with no filename |
+| 106 | 1 | from me | null | seconds `812218080` (09:08) | Love (`2000`). Target `p:0/G103` |
+| 107 | 1 | handle 1 | null | seconds `812218140` (09:09) | Laugh (`2003`). Target `p:0/does-not-exist` |
+| 108 | 1 | from me | `secret unsent body` | seconds `812218200` (09:10) | `is_sent = 0`. Omitted |
+| 109 | 1 | handle 1 | `secret retracted body` | seconds `812218260` (09:11) | `date_retracted` non-zero. Omitted |
 | 110 | 1 | handle 1 | `too early` | seconds `812142000` (2026-09-26 12:00) | `date_read = 812217660` (inside slice A). Omitted |
 | 111 | 1 | handle 1 | `Late` | seconds `812262600` (21:30) | Text. `file_day` 2026-09-27 |
-| 112 | 1 | from me | null | seconds `812218320` (09:11) | Emphasize (`2004`). Target `p:0/G112` |
+| 112 | 1 | from me | null | seconds `812218320` (09:12) | Emphasize (`2004`). Target `p:0/G112` |
 | 113 | 1 | handle 1 | null | seconds `812218680` (09:18) | Custom. `associated_message_type = 2006`, `associated_message_emoji = Cheer`. Target `p:0/G100` |
 | 115 | 1 | handle 1 | `dinner \n\n at   7` | seconds `812142300` (2026-09-26 12:05) | Outside slice A. guid `G115`. Quote target only |
 | 116 | 1 | handle 1 | 79 `a`, then U+00E9, then `Z` | seconds `812142360` (2026-09-26 12:06) | Outside slice A. guid `G112`. Quote target only |
-| 200 | 3 | handle 3 | `Ping` | seconds `812218380` (09:12) | SMS |
-| 300 | 4 | from me | `Note to self` | seconds `812218440` (09:13) | Self-only chat |
-| 400 | 5 | handle 4 | `Hey` | seconds `812218500` (09:14) | Renamed direct |
-| 500 | 2 | handle 1 | `Group hello` | seconds `812218560` (09:15) | Handle 2 sends nothing in the slice |
-| 600 | 6 | handle 1 | `Tonight` | seconds `812218620` (09:16) | Named group |
+| 200 | 3 | handle 3 | `Ping` | seconds `812218380` (09:13) | SMS |
+| 300 | 4 | from me | `Note to self` | seconds `812218440` (09:14) | Self-only chat |
+| 400 | 5 | handle 4 | `Hey` | seconds `812218500` (09:15) | Renamed direct |
+| 500 | 2 | handle 1 | `Group hello` | seconds `812218560` (09:16) | Handle 2 sends nothing in the slice |
+| 600 | 6 | handle 1 | `Tonight` | seconds `812218620` (09:17) | Named group |
 | 700 | 1 | handle 1 | `After midnight` | seconds `812273400` (2026-09-28 00:30) | Outside slice A, inside slice B |
 
 Message 116 owns guid `G112`. Row 112 is the reaction whose `associated_message_guid` is `p:0/G112`. The rowid and the guid are different numbers on purpose.
@@ -415,7 +417,7 @@ These tests must pass:
 | Test | What it asserts |
 | --- | --- |
 | `apple_epoch_cutoff` | `812217660` and `812217660000000000` are the same UTC instant. `10^15` is seconds. `10^15 + 1` is nanoseconds. |
-| `uri_is_readonly_immutable` | `/Users/ada/Library/Messages/chat.db` becomes `file:/Users/ada/Library/Messages/chat.db?mode=ro&immutable=1`. A space in the path is `%20`. |
+| `uri_is_readonly` | `/Users/ada/Library/Messages/chat.db` becomes `file:/Users/ada/Library/Messages/chat.db?mode=ro`. The URI does not contain `immutable`. A space in the path is `%20`. |
 | `open_error_reasons` | Busy/locked, `Operation not permitted`, and a missing-file `errmsg` map to the three open reasons. None of the reasons contain `See you there.` |
 | `slice_uses_sent_time` | Slice A includes row 100 and excludes row 110. `date_read` does not pull 110 in or push 100 out. |
 | `file_day_follows_sent_instant` | Row 111 is 2026-09-27. Row 700 under slice B is 2026-09-28. |
@@ -442,4 +444,3 @@ These are Messages choices. The tests above lock them in. The blank-line join of
 - Self is exact string match against `destination_caller_id`, then `account` with an `E:` or `P:` prefix stripped, then `last_addressed_handle`, then `account_login`. The first source that yields a value wins for that chat.
 - Joined group titles use other participants only. `handle` has no display-name column. `chat.display_name` is the group name, and on a direct chat it is also the Messages display name used as the title's middle fallback and as the other participant's `name`.
 - The quote truncates to 80 scalars with no ellipsis. `NSUnarchiver` failure clears that one body and does not fail the category.
-- `immutable=1` will not, by itself, report Messages.app's WAL lock as `Messages database is locked`.

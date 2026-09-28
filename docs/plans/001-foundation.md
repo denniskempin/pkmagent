@@ -364,6 +364,18 @@ Pure tests, no TCC prompt, no live `chat.db`:
 
 Fake `CollectSource` values drive the orchestrator. Category fixtures live under `tests/fixtures/` and are named in the category plans.
 
+## Privacy plist
+
+One `build.rs` embeds a single `Info.plist` into the `pkmagent` binary on `cfg(target_os = "macos")` with `-Wl,-sectcreate,__TEXT,__info_plist,<path>`. Calendar and Contacts both read this section. Do not add a second one.
+
+| Key | Value |
+| --- | --- |
+| `NSCalendarsFullAccessUsageDescription` | `pkmagent reads your calendars to copy events into the inbox.` |
+| `NSCalendarsUsageDescription` | `pkmagent reads your calendars to copy events into the inbox.` |
+| `NSContactsUsageDescription` | `pkmagent reads your contacts to copy them into the vault and to link them from collected notes.` |
+
+`NSCalendarsFullAccessUsageDescription` is what macOS 14 and later shows for the calendar prompt. `NSCalendarsUsageDescription` covers earlier macOS. `NSContactsUsageDescription` is what makes the Contacts prompt appear. Without it, a `NotDetermined` contacts fetch does not prompt and comes back denied.
+
 ## Runtime note
 
 Grant Full Disk Access, Calendar, and Contacts to a release binary at a stable path. `cargo run` changes the binary identity, so the grants do not follow it. The first live check, after the category work exists, is: `collect` with no category writes Gmail, Messages, and Calendar and does not write `<vault>/contacts`; `import` updates contacts and creates no inbox folder; `import gmail` and `collect contacts` are rejected.

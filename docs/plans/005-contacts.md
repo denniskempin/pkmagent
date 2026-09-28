@@ -74,7 +74,7 @@ Before enumerate, read `authorizationStatusForEntityType(CNEntityTypeContacts)`:
 | Denied | `Err` reason `access denied`. Do not enumerate. |
 | Restricted | `Err` reason `access restricted`. Do not enumerate. |
 | Authorized | Enumerate. |
-| NotDetermined | Enumerate. macOS prompts there. A denial comes back as an error and uses the reason `access denied`. |
+| NotDetermined | Enumerate. macOS prompts only when the binary's `Info.plist` contains `NSContactsUsageDescription`, which [001-foundation.md](001-foundation.md) embeds in the same section as the calendar keys. A denial comes back as an error and uses the reason `access denied`. |
 
 Any other store error uses the reason `fetch failed (<domain> <code>)`. Do not put `localizedDescription` or `userInfo` in the reason. Those can contain contact data. The reason has no trailing newline.
 
@@ -146,7 +146,7 @@ On macOS, `CNContact::birthday` is `NSDateComponents`. `year`, `month`, or `day`
 
 ### Note
 
-The note is `CNContact::note`. It is not a front-matter field. Trailing `\n` and `\r` are stripped. If nothing remains, `note_body` is empty. Otherwise `note_body` is `\n` plus that text, with no trailing newline of its own. Internal newlines stay. Leading whitespace stays.
+The note is `CNContact::note`. It is not a front-matter field. Strip trailing `\n` and `\r`. If nothing remains, or only Unicode whitespace remains, `note_body` is empty. Otherwise `note_body` is `\n` plus that text, with no trailing newline of its own. Internal newlines stay. Leading whitespace stays when the note also has a non-whitespace character. A note of only spaces is empty, which is what `omit_empty_note` locks in.
 
 ## Extra front matter
 
