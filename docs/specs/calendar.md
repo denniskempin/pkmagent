@@ -1,24 +1,24 @@
 # Calendar import
 
-Shared vault, cursor, publishing, and file-writing rules are in [overview.md](overview.md). This file defines the macOS Calendar source.
+See [overview.md](overview.md).
 
 ## Fetch
 
-Use the macOS Calendar store (EventKit), read-only. Do not call the Google Calendar REST API. Events appear only if that calendar is enabled in Calendar.app, including iCloud, Exchange, subscribed calendars, and Google accounts synced onto the Mac. Calendars unchecked in Calendar.app are skipped. An account that exists only on the web is out of scope.
+Use EventKit, read-only. Include events on calendars enabled in Calendar.app. Skip calendars that are unchecked.
 
-Include every returned event: accepted, tentative, not yet responded, declined, and cancelled. Store the status in frontmatter. If the API does not return a cancelled occurrence, do not invent one.
+Include accepted, tentative, not-yet-responded, declined, and cancelled events that EventKit returns. Do not invent a cancelled occurrence the store does not return.
 
-- Timed events use the start instant for the window and are filed on the local civil date of that instant. A multi-day event is one file on the start day. The file records the real end.
-- All-day events use the civil start date Calendar.app displays. Do not convert a UTC midnight through the local timezone. For the window only, treat the event as occurring at local midnight at the start of that displayed date. A run later the same day does not import that all-day event again. A multi-day all-day event is one file on its displayed start date. Store inclusive start and inclusive end dates. EventKit's exclusive end date must be converted to the inclusive last day the user sees.
-- Recurring events are expanded. One file per occurrence whose window instant falls in the slice.
+- Timed events use the start instant as `t` and are filed on that local civil date. A multi-day event is one file on the start day. The file records the real end.
+- All-day events use the civil dates Calendar.app displays. Do not shift a UTC midnight into the local zone. For the window only, `t` is local midnight at the start of the displayed start date. Store inclusive dates. Convert EventKit's exclusive end to the last day the user sees.
+- Expand recurring events. One file per occurrence whose `t` falls in the slice.
 
 ## Files
 
-The stable id is the event identifier, a slash, and the occurrence start (`YYYY-MM-DD` for all-day, RFC3339 for timed). The frontmatter `id` is that value.
+The stable id is the event identifier, a slash, and the occurrence start (`YYYY-MM-DD` for all-day, RFC3339 for timed).
 
-If any file in the day's `calendar/` directory has that occurrence id, do not modify it and do not create another file for that occurrence. Do not append to an event file. An event file that already exists is left unchanged even when the event later changes or is cancelled. If no file has that id, create one.
+If that id is already in the day's `calendar/` directory, leave the file unchanged, including when the event later changes or is cancelled. Otherwise create one. Do not append.
 
-The display title for a new file is the event title, or `untitled`. Sanitize the title with the overview rules.
+The display title is the event title, or `untitled`.
 
 ## Source link
 
@@ -26,11 +26,9 @@ The display title for a new file is the event title, or `untitled`. Sanitize the
 ical://ekevent/<utc>/<calendar item id>?method=show&options=more
 ```
 
-`<utc>` is the occurrence start formatted in UTC as `yyyyMMdd'T'HHmmss'Z'`. An all-day event uses `00:00:00Z` on its displayed start date. `<calendar item id>` is the EventKit calendar item identifier, not the event identifier, and is percent-encoded. Calendar.app does not document this URL. Use it anyway: on current macOS it opens that event.
+`<utc>` is the occurrence start in UTC as `yyyyMMdd'T'HHmmss'Z'`. An all-day event uses `00:00:00Z` on its displayed start date. `<calendar item id>` is the EventKit calendar item identifier, not the event identifier, percent-encoded. The URL is undocumented. Use it: on current macOS it opens that event.
 
 ## Extra front matter
-
-After the shared fields:
 
 ```yaml
 calendar: "Personal"
@@ -45,13 +43,13 @@ attendees:
     status: accepted
 ```
 
-`status` is one of `accepted`, `declined`, `tentative`, `cancelled`, `needs_action`, `unknown`. Use `needs_action` when the user has not responded. Omit `location` when empty. Omit `attendees` when there are none. Sort attendees by email, then name. An attendee's `name` is the contact title when the email matches, otherwise the name Calendar provides.
+`status` is `accepted`, `declined`, `tentative`, `cancelled`, `needs_action`, or `unknown`. Use `needs_action` when the user has not responded. Sort attendees by email, then name. `name` is the contact title when the email matches, otherwise the name from Calendar.
 
-Timed `start` and `end` are RFC3339 in the event's time zone. All-day `start` and `end` are inclusive civil dates (`YYYY-MM-DD`) as Calendar.app shows them. `all_day` is `true` or `false`.
+Timed `start` and `end` are RFC3339 in the event's zone. All-day `start` and `end` are inclusive `YYYY-MM-DD` dates as Calendar.app shows them.
 
 ## Body
 
-After the source link, the body is the event description as Markdown, then attendees, then the event's own URL when it differs from `source_url`.
+After the source link: the description, then attendees, then the event's own URL when it is set and differs from `source_url`.
 
 ```markdown
 Cleaning.
@@ -63,11 +61,4 @@ Cleaning.
 URL: https://example.com/appointment
 ```
 
-Omit the description when the source has none. Omit the attendees section when there are none. The parenthesized word is that attendee's status. Omit the `URL` line when the event has no URL or it equals `source_url`.
-
-## Edge cases
-
-- An event whose start is at or after the frozen end is not imported by catch-up. A timed event later the same day is imported when a later run's window covers its start.
-- A Wednesday–Friday event becomes one file in Wednesday's folder. The frontmatter end is Friday. A later run does not append to that file.
-- An all-day event on March 1 stays in `inbox/2026-03-01/` even when the store encodes all-day events as UTC midnight.
-- A changed or cancelled event is not removed or rewritten once its file exists.
+Omit the description, the attendees section, or the `URL` line when there is nothing to put there. The parenthesized word is that attendee's status.
