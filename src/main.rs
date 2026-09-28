@@ -248,9 +248,7 @@ mod tests {
             &sink,
         );
         assert_eq!(present.code, 1);
-        assert!(present
-            .stderr
-            .contains("Gmail authorization is not implemented"));
+        assert!(present.stderr.contains("gmail-client.json is invalid"));
         assert!(!vault::lock_path(&vault.root).exists());
     }
 
