@@ -1,0 +1,18 @@
+{
+  "event_identifier": "evt-holiday",
+  "calendar_item_identifier": "item/holiday+1",
+  "calendar": "Personal",
+  "title": "Holiday",
+  "all_day": true,
+  "start": null,
+  "end": null,
+  "displayed_start": "2026-09-27",
+  "exclusive_end": "2026-09-28",
+  "ek_start_utc": "2026-09-27T00:00:00Z",
+  "location": null,
+  "notes": null,
+  "url": null,
+  "event_status": "confirmed",
+  "user_status": null,
+  "attendees": []
+}

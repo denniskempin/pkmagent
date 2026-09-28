@@ -1,0 +1,20 @@
+{
+  "event_identifier": "evt-dentist",
+  "calendar_item_identifier": "item/dentist+1",
+  "calendar": "Personal",
+  "title": "Dentist",
+  "all_day": false,
+  "start": "2026-09-27T15:00:00-07:00",
+  "end": "2026-09-27T16:00:00-07:00",
+  "displayed_start": null,
+  "exclusive_end": null,
+  "ek_start_utc": null,
+  "location": "123 Main St",
+  "notes": "Cleaning.",
+  "url": "https://example.com/appointment",
+  "event_status": "confirmed",
+  "user_status": "accepted",
+  "attendees": [
+    { "name": "Ada Lovelace", "email": "ada@example.com", "status": "accepted" }
+  ]
+}
