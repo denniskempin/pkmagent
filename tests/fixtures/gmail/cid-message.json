@@ -1,0 +1,43 @@
+{
+  "id": "c1",
+  "threadId": "tc",
+  "internalDate": "1790435643000",
+  "payload": {
+    "mimeType": "multipart/related",
+    "headers": [
+      {"name": "From", "value": "ada@example.com"},
+      {"name": "To", "value": "name@gmail.com"},
+      {"name": "Subject", "value": "Pics"}
+    ],
+    "parts": [
+      {
+        "mimeType": "text/html",
+        "headers": [
+          {"name": "Content-Type", "value": "text/html; charset=UTF-8"}
+        ],
+        "body": {
+          "data": "PHA-SGk8L3A-PGltZyBhbHQ9ImlubGluZSIgc3JjPSJjaWQ6aWlfYWJjIj48aW1nIGFsdD0iZ29uZSIgc3JjPSJjaWQ6bWlzc2luZyI-"
+        }
+      },
+      {
+        "mimeType": "image/png; name=\"photo.png\"",
+        "filename": "photo.png",
+        "headers": [
+          {"name": "Content-Type", "value": "image/png; name=\"photo.png\""},
+          {"name": "Content-ID", "value": "<ii_abc>"},
+          {"name": "Content-Disposition", "value": "inline; filename=\"photo.png\""}
+        ],
+        "body": {"attachmentId": "att-photo", "size": 10}
+      },
+      {
+        "mimeType": "application/pdf",
+        "filename": "",
+        "headers": [
+          {"name": "Content-Type", "value": "application/pdf"},
+          {"name": "Content-Disposition", "value": "attachment"}
+        ],
+        "body": {"attachmentId": "att-pdf", "size": 20}
+      }
+    ]
+  }
+}

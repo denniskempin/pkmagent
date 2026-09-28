@@ -1,0 +1,29 @@
+[package]
+name = "pkmagent"
+version = "0.1.0"
+edition = "2021"
+description = "Local read-only importer for Gmail, Messages, Calendar, and Contacts"
+publish = false
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+chrono-tz = "0.10"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+scraper = "0.22"
+mailparse = "0.16"
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.8"
+encoding_rs = "0.8"
+urlencoding = "2"
+rusqlite = { version = "0.40", features = ["bundled"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "=0.6.2"
+objc2-foundation = { version = "=0.3.2", features = ["NSArray", "NSCalendar", "NSData", "NSDate", "NSError", "NSObject", "NSString", "NSURL"] }
+objc2-event-kit = "=0.3.2"
+objc2-contacts = "=0.3.2"
+block2 = "=0.6.1"

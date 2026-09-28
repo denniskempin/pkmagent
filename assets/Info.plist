@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>pkmagent reads your calendars to copy events into the inbox.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>pkmagent reads your calendars to copy events into the inbox.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>pkmagent reads your contacts to copy them into the vault and to link them from collected notes.</string>
+</dict>
+</plist>

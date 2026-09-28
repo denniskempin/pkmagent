@@ -1,0 +1,15 @@
+{
+  "id": "m-date",
+  "threadId": "t-date",
+  "internalDate": "1790435643000",
+  "payload": {
+    "mimeType": "text/plain",
+    "headers": [
+      {"name": "Date", "value": "Tue, 01 Jan 2020 00:00:00 +0000"},
+      {"name": "From", "value": "ada@example.com"},
+      {"name": "To", "value": "name@gmail.com"},
+      {"name": "Subject", "value": "Dated by internalDate"}
+    ],
+    "body": {"data": "SGVsbG8"}
+  }
+}

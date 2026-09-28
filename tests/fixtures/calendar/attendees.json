@@ -1,0 +1,21 @@
+{
+  "event_identifier": "evt-meeting",
+  "calendar_item_identifier": "item/meeting",
+  "calendar": "Personal",
+  "title": "Meeting",
+  "all_day": false,
+  "start": "2026-09-27T15:00:00-07:00",
+  "end": "2026-09-27T16:00:00-07:00",
+  "displayed_start": null,
+  "exclusive_end": null,
+  "ek_start_utc": null,
+  "location": null,
+  "notes": "Cleaning.",
+  "url": "https://example.com/appointment",
+  "event_status": "confirmed",
+  "user_status": "pending",
+  "attendees": [
+    { "name": "Grace Hopper", "email": "grace@example.com", "status": "tentative" },
+    { "name": "Ada Lovelace", "email": "ada@example.com", "status": "accepted" }
+  ]
+}

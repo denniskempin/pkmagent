@@ -1,0 +1,13 @@
+{
+  "id": "m-empty",
+  "threadId": "t-empty",
+  "internalDate": "1790435643000",
+  "payload": {
+    "mimeType": "text/plain",
+    "headers": [
+      {"name": "From", "value": "ada@example.com"},
+      {"name": "To", "value": "name@gmail.com"}
+    ],
+    "body": {"data": "SGVsbG8"}
+  }
+}

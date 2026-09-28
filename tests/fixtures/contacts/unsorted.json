@@ -1,0 +1,18 @@
+{
+  "identifier": "00000000-0000-0000-0000-000000000004",
+  "contact_type": "person",
+  "display_name": "Unsorted",
+  "organization": "",
+  "job_title": "",
+  "birthday": null,
+  "phones": [
+    { "label": "work", "value": "+3" },
+    { "label": "home", "value": "+0" },
+    { "label": "mobile", "value": "+2" },
+    { "label": "mobile", "value": "+1" }
+  ],
+  "emails": [{ "label": "home", "value": "Ada@Example.com" }],
+  "addresses": [],
+  "urls": [],
+  "note": null
+}
