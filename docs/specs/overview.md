@@ -195,7 +195,7 @@ Attachments, when present, are a list under `### Attachments`. Each item is `fil
 
 When writing a new inbox file or appending a section, resolve addresses against `<vault>/contacts`. Do not rewrite text already in the inbox. If `contacts/` is missing, leave addresses as the source wrote them.
 
-Use contact files that have a frontmatter `id`. The contact title is the filename without `.md`. Phones are the text after `:` on items under `## Phones`. Emails are the text after `:` on items under `## Emails`. See [contacts.md](contacts.md).
+Use contact files that have a frontmatter `id`. The contact title is the filename without `.md`. Match `phones[].value` and `emails[].value` from that file's front matter. See [contacts.md](contacts.md).
 
 Compare emails trimmed, case-insensitive. Compare phones by digits only. A match is equal digits, or the longer number is the shorter one plus a single leading `1` when the shorter one has 10 digits. No other partial match. Several matches: use the filename that sorts first by raw UTF-8 bytes.
 

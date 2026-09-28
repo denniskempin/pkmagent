@@ -31,39 +31,35 @@ The display title is the display name, or the organization name for a company re
 
 ## Extra front matter
 
+Phones, emails, addresses, and URLs go here. The note does not.
+
 ```yaml
 organization: "Analytical Engines"
 job_title: "Mathematician"
 birthday: "1815-12-10"
+phones:
+  - label: mobile
+    value: "+15551212"
+emails:
+  - label: home
+    value: ada@example.com
+addresses:
+  - label: work
+    value: "123 Main St, London"
+urls:
+  - label: homepage
+    value: https://example.com
 ```
 
-`birthday` is `YYYY-MM-DD`, or `--MM-DD` when the year is missing.
+`birthday` is `YYYY-MM-DD`, or `--MM-DD` when the year is missing. Sort each list by label, then value, raw UTF-8. Store phone numbers and emails as Contacts shows them.
 
 ## Body
 
+After the source link, the body is the contact's note. Omit it when the contact has none.
+
 ```markdown
-## Phones
-
-- mobile: +15551212
-
-## Emails
-
-- home: ada@example.com
-
-## Addresses
-
-- work: 123 Main St, London
-
-## URLs
-
-- homepage: https://example.com
-
-## Note
-
 Note text.
 ```
-
-Omit an empty section. Within a section, sort by label, then value, raw UTF-8. Store phone numbers and emails as Contacts shows them.
 
 ## Progress
 
