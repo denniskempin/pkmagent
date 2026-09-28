@@ -1,0 +1,13 @@
+{
+  "identifier": "00000000-0000-0000-0000-000000000003",
+  "contact_type": "person",
+  "display_name": "No Year",
+  "organization": "",
+  "job_title": "",
+  "birthday": { "year": null, "month": 12, "day": 10 },
+  "phones": [],
+  "emails": [],
+  "addresses": [],
+  "urls": [],
+  "note": null
+}
