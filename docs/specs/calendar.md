@@ -10,11 +10,7 @@ Include accepted, tentative, not-yet-responded, declined, and cancelled events t
 
 - Timed events use the start instant as `t` and are filed on that local civil date. A multi-day event is one file on the start day. The file records the real end.
 - All-day events use the civil dates Calendar.app displays. Do not shift a UTC midnight into the local zone. For the window only, `t` is local midnight at the start of the displayed start date. Store inclusive dates. Convert EventKit's exclusive end to the last day the user sees.
-- Expand recurring events. Collect writes one file per occurrence whose `t` falls in the slice. Import writes one file per occurrence whose `t` falls from 10 years before the run's local date through 2 years after it.
-
-## Import
-
-`pkmagent import calendar` writes `<vault>/calendar/`. An existing occurrence file is rewritten in place: front matter and body match the event as it is now, the filename stays, and `imported_at` stays. An occurrence outside the import range is left as it is.
+- Expand recurring events. One file per occurrence whose `t` falls in the slice.
 
 ## Files
 

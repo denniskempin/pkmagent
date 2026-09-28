@@ -8,11 +8,7 @@ Read `~/Library/Messages/chat.db` read-only. The process needs Full Disk Access.
 
 Include every chat, including groups and messages the user sent. Include text, attachment-only messages, tapbacks, and stickers, each as its own entry. Omit unsent messages.
 
-The instant is the sent time, not the read time. Import includes every message that has one. Collect includes those whose sent time falls in the slice. Group by chat within the output directory. Oldest first. Ties break by database message id, ascending.
-
-## Import
-
-`pkmagent import messages` writes `<vault>/messages/`. One file per chat. An existing file is rewritten in place: front matter and body match the chat as it is now, the filename stays, and `imported_at` stays.
+The window instant is the sent time, not the read time. Group by chat within the output directory. Oldest first. Ties break by database message id, ascending.
 
 ## Files
 

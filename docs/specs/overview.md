@@ -1,23 +1,23 @@
 # pkmagent
 
-`pkmagent` is a local read-only importer for four categories: `gmail`, `messages`, `calendar`, and `contacts`.
+`pkmagent` is a local read-only importer. `collect` writes Gmail, Messages, and Calendar into a new inbox folder. `import` updates Contacts in place under the vault. Contacts have no event date, and a Gmail import with no date window would pull the whole mailbox, so those commands do not cross over.
 
 - [gmail.md](gmail.md)
 - [messages.md](messages.md)
 - [calendar.md](calendar.md)
 - [contacts.md](contacts.md)
 
-`import` updates that category's files in place under the vault. `collect` writes what happened since the last collect into a new inbox folder. Source specs define what to fetch, stable ids, filenames, source URLs, and extra fields.
+Source specs define what to fetch, stable ids, filenames, source URLs, and extra fields.
 
 ## Workflow
 
-The inbox is a drop zone. The tool does not empty it. Each collect writes a new folder and does not read or modify older ones. Import does not write the inbox. Collect does not write the vault category directories.
+The inbox is a drop zone. The tool does not empty it. Each collect writes a new folder and does not read or modify older ones. Import does not write the inbox. Collect does not write `<vault>/contacts`.
 
 A collect cursor is a timestamp per category, the exclusive end of the last successful collect of that category. A run at 18:00 after a 10:00 gmail collect collects gmail only from 10:00 onward, into a new folder.
 
 ## Vault layout
 
-The vault is the parent of the inbox. The default inbox is `./inbox`, so the default vault is the working directory. `--inbox PATH` replaces the inbox. The tool creates the inbox and a category directory when it writes there.
+The vault is the parent of the inbox. The default inbox is `./inbox`, so the default vault is the working directory. `--inbox PATH` replaces the inbox. The tool creates the inbox, and `<vault>/contacts`, when it writes there.
 
 ```text
 <vault>/
@@ -27,12 +27,6 @@ The vault is the parent of the inbox. The default inbox is `./inbox`, so the def
   .pkmagent/secrets/
     gmail-client.json
     gmail.json
-  gmail/
-    Quarterly plan.md
-  messages/
-    Ada Lovelace.md
-  calendar/
-    Dentist.md
   contacts/
     Ada Lovelace.md
   inbox/
@@ -43,8 +37,6 @@ The vault is the parent of the inbox. The default inbox is `./inbox`, so the def
         Ada Lovelace.md
       calendar/
         Dentist.md
-      contacts/
-        Ada Lovelace.md
     2026-09-25T100000-0700/
       2026-09-25/
         gmail/
@@ -54,11 +46,11 @@ The vault is the parent of the inbox. The default inbox is `./inbox`, so the def
           Dentist.md
 ```
 
-Import files live directly in `<vault>/<category>/`. One file per stable id. No day folders.
+Contact files live directly in `<vault>/contacts/`. One file per person. No day folders.
 
 A collect names its folder from the run's start time, local offset, as `YYYY-MM-DDTHHMMSS±HHMM` with the colons removed: `2026-09-27T100000-0700`. If that name exists, append `-2`, `-3`, and so on.
 
-The folder holds one directory per selected category when the run covers one or two civil dates. When it covers more than two, those category directories sit under a `YYYY-MM-DD/` layer, one per civil date that receives a file. A category with nothing to write gets no directory.
+The folder holds `gmail/`, `messages/`, and `calendar/` when the run covers one or two civil dates. When it covers more than two, those directories sit under a `YYYY-MM-DD/` layer, one per civil date that receives a file. A category with nothing to write gets no directory.
 
 A civil date is the local day the item happened, not the day the run started. A timezone change can move an instant onto another civil date. A later run uses the zone in effect then.
 
@@ -79,8 +71,7 @@ Create `<vault>/.pkmagent/` and `<vault>/.pkmagent/secrets/` when needed. The se
 {
   "gmail": "2026-09-27T18:04:11-07:00",
   "messages": null,
-  "calendar": null,
-  "contacts": null
+  "calendar": null
 }
 ```
 
@@ -90,19 +81,17 @@ Do not print tokens, client secrets, or message bodies.
 
 ## Commands
 
-Category names are `gmail`, `messages`, `calendar`, and `contacts`. A command with no category runs all four, in that order. A command with names runs those, in the order above, not the order typed. An unknown name, or the same name twice, is a bad argument.
+Collect categories are `gmail`, `messages`, and `calendar`. Import's only category is `contacts`. A command with no category runs every category that command allows. Names run in the order above, not the order typed. An unknown name, a name the command does not allow, or the same name twice, is a bad argument.
 
 ### `pkmagent auth gmail`
 
 Authorize one Gmail account for `https://www.googleapis.com/auth/gmail.readonly` and store the refresh token in `gmail.json`, replacing any previous account. The client file must already exist; if it is missing, exit `1`. `--inbox` selects the vault. This command does not change cursors.
 
-### `pkmagent import [category ...]`
+### `pkmagent import [contacts]`
 
-Update each selected category in place under `<vault>/<category>/`. Import has no cursor and takes no `--since` or `--day`.
+Update `<vault>/contacts` in place. `pkmagent import` and `pkmagent import contacts` are the same command. `import gmail`, `import messages`, and `import calendar` are rejected. Import has no cursor and takes no `--since` or `--day`. It does not read or write collect cursors.
 
-When an id already has a file, refresh that file and do not rename it. `title` stays the existing filename. `imported_at` stays. Contacts leaves the body unchanged. Gmail, Messages, and Calendar replace the body with the current source. Details are in the source specs.
-
-Import does not read or write collect cursors. When contacts is selected with another category, import contacts first so later files can link to them.
+When a person already has a file, refresh the front matter and leave the body unchanged. Do not rename the file. Details are in [contacts.md](contacts.md).
 
 ### `pkmagent collect [category ...]`
 
@@ -139,7 +128,7 @@ Each source spec defines the instant `t`. For `--day`, the slice is the whole ci
 
 Fetch every selected category before writing. Write files only after every fetch has succeeded. Write them directly into the new folder. There is no temporary file and no rename into place.
 
-One or two civil dates: files go in `<run>/<category>/`. A thread or chat is one file for the whole run, and every event occurrence goes in `<run>/calendar/`. More than two civil dates: files go in `<run>/YYYY-MM-DD/<category>/`. A thread or chat is one file per date, and an event occurrence goes under its civil date. A collected contact goes under the civil date of its modification time.
+One or two civil dates: files go in `<run>/gmail/`, `<run>/messages/`, and `<run>/calendar/`. A thread or chat is one file for the whole run, and every event occurrence goes in `<run>/calendar/`. More than two civil dates: files go in `<run>/YYYY-MM-DD/<category>/`. A thread or chat is one file per date, and an event occurrence goes under its civil date.
 
 Create the run folder only when there is a file to write. On success, set each selected category's cursor to `window_end`. `--day` does not change cursors.
 
@@ -147,7 +136,7 @@ If a fetch fails, write no folder and leave every cursor unchanged. If a write f
 
 ## Parallel collect
 
-A job is one category fetch for one civil date. Contacts is the exception: one fetch for the whole window. At most one fetch per category runs at a time. The next date for a category starts after that category's earlier date finishes.
+A job is one category fetch for one civil date. At most one fetch per category runs at a time. The next date for a category starts after that category's earlier date finishes.
 
 If a job fails, start no further jobs and discard in-flight results. Do not write the run folder.
 
@@ -155,26 +144,23 @@ If a job fails, start no further jobs and discard in-flight results. Do not writ
 
 When stderr is a terminal, rewrite one status line per selected category, in category order. Each line shows the category, `<done>/<total>`, and a label. Before it starts, the label is `waiting`.
 
-Gmail, Messages, and Calendar count civil dates. `<total>` is the number of civil dates in the window, or `1` for `--day`. The label is the date that category last finished or is fetching.
-
-Contacts counts people. `<total>` is the number of people in the run. The label is the display title most recently written.
+`<total>` is the number of civil dates in the window, or `1` for `--day`. The label is the date that category last finished or is fetching.
 
 ```text
 gmail    2/3 [=============>      ] 2026-09-27
 messages 1/3 [======>             ] 2026-09-26
 calendar 0/3 [                    ] waiting
-contacts 2/40 [=>                  ] Ada Lovelace
 ```
 
-When stderr is not a terminal, print no progress. On failure, print `YYYY-MM-DD failed <category>: <reason>` to stderr either way. A contacts failure omits the date.
+When stderr is not a terminal, print no progress. On failure, print `YYYY-MM-DD failed <category>: <reason>` to stderr either way.
 
-Import uses the same lines for the categories it was given. Gmail, Messages, and Calendar use a total of 1. Contacts counts people.
+`pkmagent import` shows one line. `<total>` is the number of people. The label is the display title most recently written, or `waiting`. A failure prints `contacts failed: <reason>`.
 
 ## Files
 
 Collect only creates files. One file per stable id in the directory it is written to. Gmail and Messages put every item for that id in that directory into the one file, oldest first.
 
-Import matches a vault file by frontmatter `id` in `<vault>/<category>/`. Several files with the same id: update the path that sorts first by raw UTF-8 bytes.
+Import matches a contact file by frontmatter `id` in `<vault>/contacts/`. Several files with the same id: update the path that sorts first by raw UTF-8 bytes.
 
 ## Filenames
 
@@ -209,7 +195,7 @@ day: YYYY-MM-DD
 timezone: America/Los_Angeles
 ```
 
-`source` is the category. `imported_at` is RFC3339 with a numeric offset, set when the file is created. `day` is the civil date of the earliest item in the file. In a dated collect that is the date folder. Import files omit `day`. `timezone` is the machine's IANA zone. Contacts files omit `day` and `timezone`.
+`source` is `gmail`, `messages`, `calendar`, or `contacts`. `imported_at` is RFC3339 with a numeric offset, set when the file is created. On a collect file, `day` is the civil date of the earliest item in the file. In a dated collect that is the date folder. `timezone` is the machine's IANA zone. Contact files omit `day` and `timezone`.
 
 Source specs add fields after these. Omit an optional field when the source has no value.
 
@@ -225,7 +211,7 @@ Attachments, when present, are a list under `### Attachments`. Each item is `fil
 
 ### Contact wiki links
 
-When import or collect writes a Gmail, Messages, or Calendar file, it resolves addresses against `<vault>/contacts`. If that directory is missing, leave addresses as the source wrote them.
+When collect writes a file, it resolves addresses against `<vault>/contacts`. If that directory is missing, leave addresses as the source wrote them.
 
 Use contact files that have a frontmatter `id`. The contact title is the filename without `.md`. Match `phones[].value` and `emails[].value` from that file's front matter. See [contacts.md](contacts.md).
 
@@ -243,7 +229,7 @@ In the body, a matched person is `[[<title>]]`. With an email, write `[[Ada Love
 
 Collect stdout begins with the run folder path when one was created. Then one line of `<category>=<files>` for each selected category. A dated run prints that line once per date that received a file, prefixed with `YYYY-MM-DD`. An empty success prints the zeros and no folder path.
 
-Import stdout is one line of `<category>=<files>` for each selected category. Count files created or updated.
+Import stdout is `contacts=<files>`, the number of files created or updated.
 
 ## Worked example
 
